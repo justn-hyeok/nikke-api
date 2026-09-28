@@ -50,19 +50,9 @@ curl "https://nikke-api-gunwoos-projects.vercel.app/api/nikkes?element=Electroni
 
 ### 응답 구조
 
-목록 응답은 경량입니다. 상세(`/api/nikkes/:id`)에서만 `details`가 붙습니다:
+목록 응답은 경량입니다. 상세(`/api/nikkes/:id`)에서만 `details`(배경 스토리, 성우, 스킬, 레벨별 스탯, 호감도 시나리오 등)가 붙습니다.
 
-```
-details: {
-  backstory,           // 캐릭터 배경 스토리 (4개 언어)
-  squad, cv,           // 스쿼드, 성우
-  combat,              // 전투 관련 메타데이터
-  skills[],            // 스킬: name, descriptionTemplate(원본), descriptions(Lv10), values(레벨별 원본 수치), cooltime
-  statsPerLevel,       // 레벨별 스탯
-  teammateList,
-  attractiveScenarios  // 호감도 시나리오 목록
-}
-```
+**요청/응답 형식 전체 문서 → [docs/API.md](docs/API.md)**
 
 ## 로컬 실행
 
@@ -84,6 +74,10 @@ npm run dev       # 로컬 서버 (tsx watch)
 ## 기술 스택
 
 TypeScript · Hono · @hono/node-server · Vercel Serverless · esbuild (배포용 트랜스파일)
+
+## 문의
+
+문의나 요청사항은 **leegunwoo0325@gmail.com**으로 보내주세요.
 
 ## 라이선스
 

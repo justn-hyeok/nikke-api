@@ -145,10 +145,14 @@ export interface NikkeDetail {
   };
   cv: { ko?: string; ja?: string; en?: string };
   combat: {
+    /** crit rate in % (15 = 15%) */
     criticalRatio?: number;
+    /** crit damage in % (150 = 150%) */
     criticalDamage?: number;
+    /** bonus damage range in % */
     bonusRangeMin?: number;
     bonusRangeMax?: number;
+    /** seconds */
     burstApplyDelay?: number;
     burstDuration?: number;
     changeBurstStep?: string;

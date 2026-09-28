@@ -118,12 +118,12 @@ GET /api/nikkes?element=Electronic&rarity=SSR
     "squad": { ... },
     "cv": { "ko": "김성연", ... },
     "combat": {
-      "criticalRatio": 1500,
-      "criticalDamage": 15000,
+      "criticalRatio": 15,
+      "criticalDamage": 150,
       "bonusRangeMin": 0,
       "bonusRangeMax": 0,
-      "burstApplyDelay": 1,
-      "burstDuration": 1000,
+      "burstApplyDelay": 0.01,
+      "burstDuration": 10,
       "changeBurstStep": "Step3"
     },
     "skills": [

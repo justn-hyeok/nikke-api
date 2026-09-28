@@ -113,13 +113,22 @@ app.get("/api/meta/filters", (c) => {
 });
 
 app.get("/api/scenes", async (c) => {
-  const q = c.req.query("q");
+  const { q, category, nikke, limit, offset } = c.req.query();
   try {
-    const index: { groupId: string; name: string; lines: number }[] = JSON.parse(
-      await readFile(path.join(DIST, "scenes.json"), "utf8"),
-    );
-    const list = q ? index.filter((s) => s.groupId.includes(q) || s.name?.includes(q)) : index;
-    return c.json({ count: list.length, scenes: list });
+    let list: {
+      groupId: string;
+      name?: string;
+      lines: number;
+      category?: string;
+      nikke?: string;
+    }[] = JSON.parse(await readFile(path.join(DIST, "scenes.json"), "utf8"));
+    if (category) list = list.filter((s) => s.category === category);
+    if (nikke) list = list.filter((s) => s.nikke?.includes(nikke));
+    if (q) list = list.filter((s) => s.groupId.includes(q) || s.name?.includes(q));
+    const total = list.length;
+    const off = Math.max(0, Number(offset) || 0);
+    const lim = Math.min(Math.max(0, Number(limit) || 0), 500) || total;
+    return c.json({ count: total, offset: off, scenes: list.slice(off, off + lim) });
   } catch {
     return c.json({ count: 0, scenes: [] });
   }

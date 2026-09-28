@@ -156,7 +156,7 @@ GET /api/nikkes?element=Electronic&rarity=SSR
 | `descriptions` | **Lv10(최대 레벨) 기준 렌더링된 설명** — `{description_value_XX}` 플레이스홀더 치환 + 마크업 제거 완료 |
 | `descriptionTemplate` | 원본 템플릿 (플레이스홀더 포함) |
 | `values` | 레벨별 원본 수치 배열 (Lv1~Lv10) |
-| `cooltime` | 쿨타임, 초 단위 (버스트 스킬에만 존재 — `[40, 40, ...]` = 레벨별 40초) |
+| `cooltime` | 버스트 쿨타임, 초 단위 |
 
 ### 복수 매칭 시
 

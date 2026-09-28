@@ -177,6 +177,30 @@ async function main() {
     }
   }
 
+  // speaker code -> resource_id (covers NPCs too, e.g. marian -> 13)
+  const speakerResources = new Map<string, number>();
+  try {
+    const list = JSON.parse(await readFile(path.join(RAW, "scene_characeter_list_v2.json"), "utf8")) as {
+      id: string;
+      resource_id: number;
+    }[];
+    for (const s of list) speakerResources.set(s.id, s.resource_id);
+  } catch { /* missing map */ }
+  const speakerIcon = (code: string | undefined, rid: number | undefined) => {
+    const r = rid ?? (code ? speakerResources.get(code) : undefined);
+    return r ? images(r, 0).icon : undefined;
+  };
+  // per-chapter voice maps: d_main_NN -> set of speech ids that have voice audio
+  const voiceMaps = new Map<string, Set<string>>();
+  for (const f of rawFiles.filter((f) => f.startsWith("voice_map_"))) {
+    const key = f.replace(/^voice_map_|\.json$/g, "");
+    voiceMaps.set(key, new Set(JSON.parse(await readFile(path.join(RAW, f), "utf8"))));
+  }
+  const voiceUrl = (gid: string, id: string | undefined) =>
+    id && voiceMaps.get(gid.match(/d_main_\d+/)?.[0] ?? "")?.has(id)
+      ? cdnUrl(`voice/ko/${id}.mp3`)
+      : undefined;
+
   const sceneIndex: {
     groupId: string;
     name?: string;
@@ -202,6 +226,8 @@ async function main() {
       speakerName: r.speaker?.name_localkey?.character_name ?? r.value?.speaker,
       text: r.quest_name,
       window: r.value?.speech_window,
+      speakerIcon: speakerIcon(r.value?.speaker, undefined),
+      voice: voiceUrl(gid, r.value?.id),
     }));
     await writeFile(
       path.join(SCENES, `${gid}.json`),
@@ -224,9 +250,7 @@ async function main() {
       window: r.speech_window,
       background: r.set_background,
       bgm: r.play_bgm,
-      speakerIcon: r.speaker_detail?.resource_id
-        ? images(r.speaker_detail.resource_id, 0).icon
-        : undefined,
+      speakerIcon: speakerIcon(r.speaker, r.speaker_detail?.resource_id),
     }));
     await writeFile(
       path.join(SCENES, `${gid}.json`),

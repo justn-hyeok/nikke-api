@@ -89,6 +89,10 @@ async function syncScenes(): Promise<number> {
     for (const gid of groupIds) {
       queue.push([`scene/ko/scene_detail_${gid}.json`, `scene_${gid}.json`]);
     }
+    // per-chapter voice maps (main story only): d_main_NN -> speech ids with audio
+    for (const p of new Set(groupIds.map((g) => g.match(/d_main_\d+/)?.[0]).filter(Boolean))) {
+      queue.push([`scene/voice_map/${p}.json`, `voice_map_${p}.json`]);
+    }
   } catch {
     console.log("scenes: ko list files missing, skipped");
   }

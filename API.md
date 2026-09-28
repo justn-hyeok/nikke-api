@@ -273,7 +273,9 @@ GET /api/scenes/d_main_01_01_s
       "speaker": "marian",
       "speakerName": "마리안",
       "text": "BA-01다운!\nBA-01다운!",
-      "window": "Speech"
+      "window": "Speech",
+      "speakerIcon": "https://sg-tools-cdn.blablalink.com/.../....webp",
+      "voice": "https://sg-tools-cdn.blablalink.com/.../....mp3"
     }
   ]
 }
@@ -285,7 +287,8 @@ GET /api/scenes/d_main_01_01_s
 | `lines[].speakerName` | 화자 이름 (한국어, 내레이션 등은 코드 그대로일 수 있음) |
 | `lines[].text` | 대사 텍스트 |
 | `lines[].window` | 말풍선 타입 (`Speech`, `Choice`, `Narration` 등) |
-| `lines[].speakerIcon` | 화자 아이콘 이미지 URL (호감도 씬에만 존재) |
+| `lines[].speakerIcon` | 화자 아이콘 이미지 URL (화자가 캐릭터로 매핑될 때 존재, NPC 포함) |
+| `lines[].voice` | 해당 대사의 한국어 보이스 mp3 URL (보이스 있는 메인 스토리 대사만 존재) |
 | `lines[].background` / `lines[].bgm` | 배경·BGM 리소스 코드 (호감도 씬에만 존재) |
 
 호감도 씬(`groupId`가 `d_nikke_*`)은 상단에 `type: "attractive"`, `nikke`, `attractiveLevel` 필드가 추가로 붙습니다.

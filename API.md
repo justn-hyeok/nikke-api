@@ -209,7 +209,7 @@ GET /api/tables/CharacterLevelTable.json
 
 ## GET /api/scenes
 
-스토리 씬 목록을 반환합니다 (한국어). 메인 스토리, 이벤트 스토리, 돌발 스토리 포함 — 약 2100개 그룹.
+스토리 씬 목록을 반환합니다 (한국어). 메인/이벤트/돌발 스토리 + **호감도(Attractive) 시나리오** 포함 — 약 3000개 그룹.
 
 쿼리 `q`로 그룹 ID 또는 씬 이름 부분 일치 검색 가능:
 
@@ -228,9 +228,12 @@ GET /api/scenes?q=발신자
 
 | 필드 | 설명 |
 |------|------|
-| `groupId` | 시나리오 그룹 ID (`d_main_*` 메인, `event_*` 이벤트, `d_ex_*` 돌발) |
+| `groupId` | 시나리오 그룹 ID (`d_main_*` 메인, `event_*` 이벤트, `d_ex_*` 돌발, `d_nikke_*` 호감도) |
 | `name` | 씬 이름 (한국어) |
 | `lines` | 대사 수 |
+| `type` | `"attractive"`이면 호감도 시나리오 (일반 스토리는 없음) |
+| `nikke` | 호감도 시나리오 대상 니케 (호감도만) |
+| `level` | 필요 호감도 레벨 (호감도만) |
 
 ## GET /api/scenes/:groupId
 
@@ -262,7 +265,10 @@ GET /api/scenes/d_main_01_01_s
 | `lines[].speaker` | 화자 코드 (내부 식별자) |
 | `lines[].speakerName` | 화자 이름 (한국어, 내레이션 등은 코드 그대로일 수 있음) |
 | `lines[].text` | 대사 텍스트 |
-| `lines[].window` | 말풍선 타입 (`Speech` 등) |
+| `lines[].window` | 말풍선 타입 (`Speech`, `Choice`, `Narration` 등) |
+| `lines[].background` / `lines[].bgm` | 배경·BGM 리소스 코드 (호감도 씬에만 존재) |
+
+호감도 씬(`groupId`가 `d_nikke_*`)은 상단에 `type: "attractive"`, `nikke`, `attractiveLevel` 필드가 추가로 붙습니다.
 
 ## GET /api/cdn
 

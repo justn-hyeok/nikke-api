@@ -145,10 +145,10 @@ export interface NikkeDetail {
   };
   cv: { ko?: string; ja?: string; en?: string };
   combat: {
-    /** crit rate in % (15 = 15%) */
-    criticalRatio?: number;
-    /** crit damage in % (150 = 150%) */
-    criticalDamage?: number;
+    /** crit rate, e.g. "15%" */
+    criticalRatio?: string;
+    /** crit damage, e.g. "150%" */
+    criticalDamage?: string;
     /** bonus damage range in % */
     bonusRangeMin?: number;
     bonusRangeMax?: number;

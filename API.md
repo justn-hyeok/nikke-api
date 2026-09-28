@@ -147,7 +147,20 @@ GET /api/nikkes?element=Electronic&rarity=SSR
       "hp": [...]
     },
     "teammateList": [ ... ],
-    "attractiveScenarios": [ ... ]
+    "attractiveScenarios": [ ... ],
+    "voices": [
+      {
+        "id": 120001,
+        "categoryGroup": 1,
+        "order": 101,
+        "isTeaser": true,
+        "conditionAttractiveLevel": 1,
+        "speechId": "c012_Lobby_Touch_1",
+        "label": { "ko": "로비 터치 I", ... },
+        "text": { "ko": "믿는 버릇을 들이라고? 하하. 농담도.", ... },
+        "voice": { "ko": ".../c012_Lobby_Touch_1.mp3", "en": "...", "ja": "..." }
+      }
+    ]
   }
 }
 ```
@@ -161,6 +174,10 @@ GET /api/nikkes?element=Electronic&rarity=SSR
 | `descriptionTemplate` | 원본 템플릿 (플레이스홀더 포함) |
 | `values` | 레벨별 원본 수치 배열 (Lv1~Lv10) |
 | `cooltime` | 버스트 쿨타임, 초 단위 |
+
+### `voices[]` 필드
+
+캐릭터 대사/보이스 목록 (로비 터치, 전투 진입·승리, 호감도 구간 대사 등). `label`은 대사 종류(언어별), `text`는 대사 텍스트(언어별), `voice`는 ko/en/ja 음성 mp3 URL (zh-TW 보이스는 존재하지 않음). `conditionAttractiveLevel`은 대사 해금에 필요한 호감도 레벨.
 
 ### 복수 매칭 시
 
@@ -290,7 +307,7 @@ GET /api/scenes/d_main_01_01_s
 | `lines[].text` | 대사 텍스트 |
 | `lines[].window` | 말풍선 타입 (`Speech`, `Choice`, `Narration` 등) |
 | `lines[].speakerIcon` | 화자 아이콘 이미지 URL (화자가 캐릭터로 매핑될 때 존재, NPC 포함) |
-| `lines[].voice` | 해당 대사의 한국어 보이스 mp3 URL (보이스 있는 메인 스토리 대사만 존재) |
+| `lines[].voice` | 해당 대사의 한국어 보이스 mp3 URL. 보이스가 없는 라인·비(非)풀보이스 씬에서는 `null` |
 | `lines[].background` / `lines[].bgm` | 배경·BGM 리소스 코드 (호감도 씬에만 존재) |
 
 호감도 씬(`groupId`가 `d_nikke_*`)은 상단에 `type: "attractive"`, `nikke`, `attractiveLevel` 필드가 추가로 붙습니다.

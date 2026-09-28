@@ -89,8 +89,14 @@ async function syncScenes(): Promise<number> {
     for (const gid of groupIds) {
       queue.push([`scene/ko/scene_detail_${gid}.json`, `scene_${gid}.json`]);
     }
-    // per-chapter voice maps (main story only): d_main_NN -> speech ids with audio
-    for (const p of new Set(groupIds.map((g) => g.match(/d_main_\d+/)?.[0]).filter(Boolean))) {
+    // voice maps — same key rule as the SPA: d_main_NN for main, whole gid for events
+    // (fully-voiced events have a map per group; others 404 harmlessly)
+    const voiceKeys = new Set(
+      groupIds
+        .map((g) => g.match(/d_main_\d+/)?.[0] ?? (g.startsWith("event_") ? g : null))
+        .filter(Boolean) as string[],
+    );
+    for (const p of voiceKeys) {
       queue.push([`scene/voice_map/${p}.json`, `voice_map_${p}.json`]);
     }
   } catch {

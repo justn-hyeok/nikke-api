@@ -199,9 +199,9 @@ async function main() {
     voiceMaps.set(key, new Set(JSON.parse(await readFile(path.join(RAW, f), "utf8"))));
   }
   const voiceUrl = (gid: string, id: string | undefined) =>
-    id && voiceMaps.get(gid.match(/d_main_\d+/)?.[0] ?? "")?.has(id)
+    id && voiceMaps.get(gid.match(/d_main_\d+/)?.[0] ?? gid)?.has(id)
       ? cdnUrl(`voice/ko/${id}.mp3`)
-      : undefined;
+      : null;
 
   const sceneIndex: {
     groupId: string;
@@ -253,6 +253,7 @@ async function main() {
       background: r.set_background,
       bgm: r.play_bgm,
       speakerIcon: speakerIcon(r.speaker, r.speaker_detail?.resource_id),
+      voice: voiceUrl(gid, r.id),
     }));
     await writeFile(
       path.join(SCENES, `${gid}.json`),
@@ -467,6 +468,42 @@ async function buildDetail(resourceId: number): Promise<NikkeDetail | null> {
     mergeSkill("burst", roles, (r) => r.ulti_skill_detail),
   ].filter((s): s is Skill => s !== null);
 
+  // character voice lines — audio exists for ko/en/ja only
+  const voiceById = new Map<number, NonNullable<NikkeDetail["voices"]>[number]>();
+  roles.forEach((r, i) => {
+    if (!r) return;
+    const l = LOCALES[i];
+    for (const v of r.character_dialog_group_list ?? []) {
+      let e = voiceById.get(v.id);
+      if (!e) {
+        e = {
+          id: v.id,
+          categoryGroup: v.category_group,
+          order: v.order,
+          isTeaser: v.is_teaser,
+          conditionAttractiveLevel: v.condition_attractive_level,
+          speechId: v.speech_id,
+          label: {},
+          text: {},
+          voice: v.speech_id
+            ? Object.fromEntries(
+                (["ko", "en", "ja"] as const).map((lang) => [
+                  lang,
+                  cdnUrl(`voice/${lang}/${v.speech_id}.mp3`),
+                ]),
+              )
+            : {},
+        };
+        voiceById.set(v.id, e);
+      }
+      if (v.voice_description) e.label[l] = v.voice_description;
+      if (v.speech_localkey) e.text[l] = v.speech_localkey;
+    }
+  });
+  const voices = [...voiceById.values()].sort(
+    (a, b) => (a.order ?? 0) - (b.order ?? 0),
+  );
+
   return {
     backstory,
     squad: first.squad_detail
@@ -500,6 +537,7 @@ async function buildDetail(resourceId: number): Promise<NikkeDetail | null> {
     },
     teammateList: first.teammate_list,
     attractiveScenarios: first.attractive_scenario_list,
+    voices: voices.length ? voices : undefined,
   };
 }
 

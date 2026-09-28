@@ -1,4 +1,4 @@
-# nikke-data-api
+# nikke-api
 
 > [!WARNING]
 > **저작권 고지 — 반드시 읽어주세요**

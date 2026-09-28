@@ -146,7 +146,10 @@ async function main() {
   // --- copy remaining tables verbatim ---
   const rawFiles = await readdir(RAW);
   const skip = (f: string) =>
-    f.startsWith("nikke_list_") || f.startsWith("roledata_") || /^scene_(d_|event_)/.test(f);
+    f.startsWith("nikke_list_") ||
+    f.startsWith("roledata_") ||
+    /^scene_(d_|event_)/.test(f) ||
+    f.startsWith("attract_");
   let copied = 0;
   for (const f of rawFiles) {
     if (skip(f)) continue;
@@ -158,7 +161,30 @@ async function main() {
   // --- normalize ko scene dialogue files ---
   const SCENES = path.join(OUT, "scenes");
   await mkdir(SCENES, { recursive: true });
-  const sceneIndex: { groupId: string; name: string; lines: number }[] = [];
+  // attractive scenario metadata: gid -> { title, level, nikke }
+  const attractMeta = new Map<string, { title?: string; level?: number; nikke?: string }>();
+  for (const f of rawFiles.filter((f) => f.startsWith("roledata_") && f.endsWith("_ko.json"))) {
+    const r = JSON.parse(await readFile(path.join(RAW, f), "utf8"));
+    for (const s of r.attractive_scenario_list ?? []) {
+      const gid: string | undefined = s.attractive_scenario_group_id;
+      if (gid) {
+        attractMeta.set(gid, {
+          title: s.scenario_title_locale,
+          level: s.attractive_level,
+          nikke: r.name_localkey,
+        });
+      }
+    }
+  }
+
+  const sceneIndex: {
+    groupId: string;
+    name?: string;
+    lines: number;
+    type?: string;
+    nikke?: string;
+    level?: number;
+  }[] = [];
   for (const f of rawFiles.filter((f) => /^scene_(d_|event_)/.test(f))) {
     const d = JSON.parse(await readFile(path.join(RAW, f), "utf8"));
     const gid = d.scenario_group_id?.value ?? f.replace(/^scene_|\.json$/g, "");
@@ -175,6 +201,42 @@ async function main() {
       JSON.stringify({ id: d.id, groupId: gid, name: d.scene_name, lines }),
     );
     sceneIndex.push({ groupId: gid, name: d.scene_name, lines: lines.length });
+  }
+
+  // --- normalize ko attractive (호감도) dialogue files ---
+  for (const f of rawFiles.filter((f) => f.startsWith("attract_") && f.endsWith(".json"))) {
+    const d = JSON.parse(await readFile(path.join(RAW, f), "utf8"));
+    const gid = f.replace(/^attract_|\.json$/g, "");
+    const meta = attractMeta.get(gid);
+    const records = Array.isArray(d.records) ? d.records : [];
+    const lines = records.map((r: any) => ({
+      id: r.id,
+      speaker: r.speaker,
+      speakerName: r.speaker_detail?.name_localkey ?? r.speaker,
+      text: r.scenario_localkey,
+      window: r.speech_window,
+      background: r.set_background,
+      bgm: r.play_bgm,
+    }));
+    await writeFile(
+      path.join(SCENES, `${gid}.json`),
+      JSON.stringify({
+        groupId: gid,
+        type: "attractive",
+        name: meta?.title,
+        nikke: meta?.nikke,
+        attractiveLevel: meta?.level,
+        lines,
+      }),
+    );
+    sceneIndex.push({
+      groupId: gid,
+      name: meta?.title,
+      lines: lines.length,
+      type: "attractive",
+      nikke: meta?.nikke,
+      level: meta?.level,
+    });
   }
   await writeFile(path.join(OUT, "scenes.json"), JSON.stringify(sceneIndex));
   console.log(`scenes/: ${sceneIndex.length} dialogue files (ko)`);

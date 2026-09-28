@@ -75,28 +75,41 @@ async function syncRoleData(): Promise<number> {
 
 // ko-only scene detail (dialogue) files, keyed by scenario_group_id
 async function syncScenes(): Promise<number> {
-  let groupIds: string[] = [];
+  const fs = await import("node:fs/promises");
+  const queue: [string, string][] = [];
   try {
-    const fs = await import("node:fs/promises");
     const blob = await Promise.all(
       ["scene_list_ko.json", "sudden_list_ko.json", "archive_list_ko.json"].map((f) =>
         fs.readFile(path.join(OUT_DIR, f), "utf8"),
       ),
     );
-    groupIds = [...new Set(blob.join("").matchAll(/"scenario_group_id"\s*:\s*"([^"]+)"/g))].map(
-      (m) => m[1],
-    );
+    const groupIds = [
+      ...new Set(blob.join("").matchAll(/"scenario_group_id"\s*:\s*"([^"]+)"/g)),
+    ].map((m) => m[1]);
+    for (const gid of groupIds) {
+      queue.push([`scene/ko/scene_detail_${gid}.json`, `scene_${gid}.json`]);
+    }
   } catch {
     console.log("scenes: ko list files missing, skipped");
-    return 0;
   }
+
+  // attractive (호감도) scenario groups live in roledata, on a different CDN path
+  for (const f of await fs.readdir(OUT_DIR)) {
+    if (!(f.startsWith("roledata_") && f.endsWith("_ko.json"))) continue;
+    const r = JSON.parse(await fs.readFile(path.join(OUT_DIR, f), "utf8"));
+    for (const s of r.attractive_scenario_list ?? []) {
+      const gid: string | undefined = s.attractive_scenario_group_id;
+      if (gid && !queue.some(([, o]) => o === `attract_${gid}.json`)) {
+        queue.push([`attractscene/${gid}-ko.json`, `attract_${gid}.json`]);
+      }
+    }
+  }
+
   let done = 0;
   const CONCURRENCY = 8;
-  for (let i = 0; i < groupIds.length; i += CONCURRENCY) {
+  for (let i = 0; i < queue.length; i += CONCURRENCY) {
     const results = await Promise.all(
-      groupIds
-        .slice(i, i + CONCURRENCY)
-        .map((gid) => download(`scene/ko/scene_detail_${gid}.json`, `scene_${gid}.json`)),
+      queue.slice(i, i + CONCURRENCY).map(([p, out]) => download(p, out)),
     );
     done += results.filter(Boolean).length;
   }

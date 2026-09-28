@@ -78,8 +78,3 @@ TypeScript · Hono · @hono/node-server · Vercel Serverless · esbuild (배포�
 ## 문의
 
 문의나 요청사항은 **leegunwoo0325@gmail.com**으로 보내주세요.
-
-## 라이선스
-
-- **코드**: 자유롭게 사용 가능
-- **데이터/이미지**: 모든 권리는 **© SHIFT UP / Level Infinite**에 있습니다. 본 API는 데이터의 소유권을 주장하지 않으며, 사용 시 발생하는 법적 책임은 사용자에게 있습니다.

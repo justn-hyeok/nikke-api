@@ -289,6 +289,8 @@ GET /api/scenes/d_main_01_01_s
 
 호감도 씬(`groupId`가 `d_nikke_*`)은 상단에 `type: "attractive"`, `nikke`, `attractiveLevel` 필드가 추가로 붙습니다.
 
+캐릭터별 호감도 씬은 `/api/nikkes/:id` 상세의 `details.attractiveScenarios`에 들어있는 `attractive_scenario_group_id`로 연결됩니다. 스킨 캐릭터(예: `아니스 : 스타`)는 자기 전용 그룹(`d_nikke_anis_star_*`)을 가지며, `?nikke=` 필터는 부분 일치라 `아니스`로 검색하면 모든 스킨 버전이 함께 나옵니다.
+
 ## GET /api/cdn
 
 BlablaLink CDN 리소스 경로를 실제 URL로 변환합니다.

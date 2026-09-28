@@ -149,7 +149,9 @@ async function main() {
     f.startsWith("nikke_list_") ||
     f.startsWith("roledata_") ||
     /^scene_(d_|event_)/.test(f) ||
-    f.startsWith("attract_");
+    f.startsWith("attract_") ||
+    f.startsWith("voice_map_") ||
+    /^favorite_\d+_/.test(f);
   let copied = 0;
   for (const f of rawFiles) {
     if (skip(f)) continue;
@@ -275,6 +277,123 @@ async function main() {
   }
   await writeFile(path.join(OUT, "scenes.json"), JSON.stringify(sceneIndex));
   console.log(`scenes/: ${sceneIndex.length} dialogue files (ko)`);
+
+  // --- normalize favorite (소장품) item files ---
+  const FAVS = path.join(OUT, "favorites");
+  await mkdir(FAVS, { recursive: true });
+  const favIds = [
+    ...new Set(
+      rawFiles
+        .filter((f) => /^favorite_\d+_ko\.json$/.test(f))
+        .map((f) => f.replace(/^favorite_(\d+)_ko\.json$/, "$1")),
+    ),
+  ];
+  const favIndex: {
+    id: number;
+    rare?: string;
+    name: Partial<Record<Locale, string>>;
+    weaponType?: string;
+  }[] = [];
+
+  // description_value_list -> per-locale skill render, same placeholder scheme as nikke skills
+  const favSkill = (kind: string, entry: any, localeFiles: any[]) => {
+    const info = kind === "item" ? entry?.info : entry;
+    if (!info) return null;
+    const name: Partial<Record<Locale, string>> = {};
+    const descriptionTemplate: Partial<Record<Locale, string>> = {};
+    const descriptions: Partial<Record<Locale, string>> = {};
+    const infoLabel: Partial<Record<Locale, string>> = {};
+    let values: (string[] | null)[] = [];
+    localeFiles.forEach((r, i) => {
+      const l = LOCALES[i];
+      const list = (kind === "item" ? r?.favoriteitem_skill_group_data : r?.collection_skill_group_data) ?? [];
+      const e = list.find((x: any) => (kind === "item" ? x.info?.id : x.id) === info.id);
+      const ei = kind === "item" ? e?.info : e;
+      if (!ei) return;
+      const v = (ei.description_value_list ?? []).map((x: any) => x.description_value ?? null);
+      if (v.length > values.length) values = v;
+      if (ei.name_localkey) name[l] = ei.name_localkey;
+      if (ei.info_description_localkey) infoLabel[l] = ei.info_description_localkey;
+      if (ei.description_localkey) {
+        descriptionTemplate[l] = ei.description_localkey;
+        const maxLv = Math.max(Math.max(...v.map((x: any) => x?.length ?? 0)) - 1, 0);
+        descriptions[l] = renderDescription(ei.description_localkey, v, maxLv);
+      }
+    });
+    return {
+      kind,
+      slot: kind === "item" ? entry.skill_change_slot : undefined,
+      id: info.id,
+      groupId: info.group_id,
+      icon: skillIcon(info.icon),
+      infoLabel,
+      name,
+      descriptionTemplate,
+      descriptions,
+      values,
+    };
+  };
+
+  for (const idStr of favIds) {
+    const files = await Promise.all(
+      LOCALES.map((l) => readJson<any>(`favorite_${idStr}_${l}.json`)),
+    );
+    const first = files.find(Boolean);
+    if (!first) continue;
+    const id = Number(idStr);
+    const name: Partial<Record<Locale, string>> = {};
+    const description: Partial<Record<Locale, string>> = {};
+    files.forEach((r, i) => {
+      if (!r) return;
+      const l = LOCALES[i];
+      if (r.name_localkey) name[l] = r.name_localkey;
+      if (r.description_localkey) description[l] = r.description_localkey;
+    });
+    const stats = first.atk.map((_: number, i: number) => ({
+      level: i + 1,
+      atk: first.atk[i],
+      def: first.def[i],
+      hp: first.hp[i],
+      power: first.powers?.[i],
+      grade: first.grade?.[i],
+      collectionSkillLevel: first.level1?.[i],
+      itemSkillLevel: first.level2?.[i],
+    }));
+    const skills = [
+      ...(first.collection_skill_group_data ?? []).map((e: any) => favSkill("collection", e, files)),
+      ...(first.favoriteitem_skill_group_data ?? []).map((e: any) => favSkill("item", e, files)),
+    ].filter(Boolean);
+    const item = {
+      id,
+      nameCode: first.name_code,
+      rare: first.favorite_rare,
+      type: first.favorite_type,
+      weaponType: first.weapon_type,
+      maxLevel: first.max_level,
+      name,
+      description,
+      images: {
+        icon: first.icon_resource_id
+          ? cdnUrl(`icon/favoriteitem/${first.icon_resource_id}.webp`)
+          : undefined,
+        prop: first.prop_resource_id
+          ? cdnUrl(`icon/favoriteitem/${first.prop_resource_id}.webp`)
+          : undefined,
+      },
+      stats,
+      skills,
+    };
+    await writeFile(path.join(FAVS, `${id}.json`), JSON.stringify(item));
+    favIndex.push({
+      id,
+      rare: first.favorite_rare,
+      name,
+      weaponType: first.weapon_type,
+    });
+  }
+  favIndex.sort((a, b) => a.id - b.id);
+  await writeFile(path.join(OUT, "favorites.json"), JSON.stringify(favIndex));
+  console.log(`favorites/: ${favIndex.length} items`);
 }
 
 // strip <color=#...>, <word_group=NNN>..</..> etc, keep inner text

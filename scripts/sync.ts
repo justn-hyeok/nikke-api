@@ -120,6 +120,39 @@ async function syncScenes(): Promise<number> {
   return done;
 }
 
+// favorite (소장품) item details, ids come from favorite_rare_map.json
+async function syncFavorites(): Promise<number> {
+  const fs = await import("node:fs/promises");
+  let ids: number[] = [];
+  try {
+    const map = JSON.parse(
+      await fs.readFile(path.join(OUT_DIR, "favorite_rare_map.json"), "utf8"),
+    );
+    for (const v of Object.values(map)) if (Array.isArray(v)) ids.push(...(v as number[]));
+    ids = [...new Set(ids)];
+  } catch {
+    console.log("favorites: favorite_rare_map.json missing, skipped");
+    return 0;
+  }
+
+  const queue: [string, string][] = [];
+  for (const id of ids) {
+    for (const l of LOCALES) {
+      // equip files use lowercase zh-tw
+      queue.push([`equip/${l.toLowerCase()}/favorite_${id}.json`, `favorite_${id}_${l}.json`]);
+    }
+  }
+  let done = 0;
+  const CONCURRENCY = 8;
+  for (let i = 0; i < queue.length; i += CONCURRENCY) {
+    const results = await Promise.all(
+      queue.slice(i, i + CONCURRENCY).map(([p, out]) => download(p, out)),
+    );
+    done += results.filter(Boolean).length;
+  }
+  return done;
+}
+
 async function download(pathTemplate: string, outName: string): Promise<boolean> {
   const url = cdnUrl(pathTemplate);
   try {
@@ -160,6 +193,9 @@ async function main() {
 
   const s = await syncScenes();
   console.log(`${s} scene detail files synced (ko)`);
+
+  const fv = await syncFavorites();
+  console.log(`${fv} favorite item files synced`);
 }
 
 main();

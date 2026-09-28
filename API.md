@@ -18,6 +18,8 @@
 - [GET /api/tables/:file](#get-apitablesfile) — 원본 테이블 조회
 - [GET /api/scenes](#get-apiscenes) — 스토리 씬 목록 (한국어)
 - [GET /api/scenes/:groupId](#get-apiscenesgroupid) — 씬 대본 (한국어)
+- [GET /api/favorites](#get-apifavorites) — 소장품 목록
+- [GET /api/favorites/:id](#get-apifavoritesid) — 소장품 상세 (레벨별 스탯·스킬)
 - [GET /api/cdn](#get-apicdn) — CDN 경로 → URL 변환
 - [에러 응답](#에러-응답)
 
@@ -294,6 +296,56 @@ GET /api/scenes/d_main_01_01_s
 호감도 씬(`groupId`가 `d_nikke_*`)은 상단에 `type: "attractive"`, `nikke`, `attractiveLevel` 필드가 추가로 붙습니다.
 
 캐릭터별 호감도 씬은 `/api/nikkes/:id` 상세의 `details.attractiveScenarios`에 들어있는 `attractive_scenario_group_id`로 연결됩니다. 스킨 캐릭터(예: `아니스 : 스타`)는 자기 전용 그룹(`d_nikke_anis_star_*`)을 가지며, `?nikke=` 필터는 부분 일치라 `아니스`로 검색하면 모든 스킨 버전이 함께 나옵니다.
+
+## GET /api/favorites
+
+소장품(페이버릿 아이템) 목록을 반환합니다 — 33종 (R/SR/SSR).
+
+### 쿼리 파라미터
+
+| 파라미터 | 설명 | 예시 |
+|----------|------|------|
+| `q` | 이름 부분 일치 (전 언어) | `?q=기차` |
+| `rare` | 레어 필터 | `R` / `SR` / `SSR` |
+
+```json
+{
+  "count": 33,
+  "favorites": [
+    { "id": 200101, "rare": "SSR", "name": { "ko": "장난감 기차 세트", ... }, "weaponType": "MG" }
+  ]
+}
+```
+
+## GET /api/favorites/:id
+
+소장품 상세를 반환합니다.
+
+```json
+{
+  "id": 200101,
+  "nameCode": 5020,
+  "rare": "SSR",
+  "weaponType": "MG",
+  "maxLevel": 2,
+  "name": { "ko": "장난감 기차 세트", "en": "Toy Train Set", ... },
+  "description": { "ko": "추억에 갇혀있던 장난감 기차는...", ... },
+  "images": { "icon": "...", "prop": "..." },
+  "stats": [
+    { "level": 1, "atk": 9688, "def": 2058, "hp": 301800, "power": 1288,
+      "grade": 1, "collectionSkillLevel": 4, "itemSkillLevel": 4 }
+  ],
+  "skills": [ ... ]
+}
+```
+
+| 필드 | 설명 |
+|------|------|
+| `stats[]` | 레벨별 스탯 — `level`, `atk`, `def`, `hp`, `power`, `grade`, `collectionSkillLevel`(컬렉션 스킬 레벨), `itemSkillLevel`(소장품 스킬 레벨) |
+| `skills[].kind` | `collection` = 수집 효과 스킬, `item` = 소장품 전용 스킬 (`slot` = 돌파 슬롯) |
+| `skills[].descriptions` | 최대 레벨 기준 렌더링된 설명 (언어별) |
+| `skills[].descriptionTemplate` / `skills[].values` | 원본 템플릿 + 레벨별 수치 배열 |
+| `skills[].infoLabel` | 연계 스킬 종류 표기 (예: "버스트 스킬", "스킬2") |
 
 ## GET /api/cdn
 

@@ -3,6 +3,9 @@ node_modules/
 # synced/generated game data — regenerate with `npm run sync` + `npx tsx scripts/build.ts`
 data/
 
+# transpiled server output — regenerated during build
+server/
+
 *.log
 .env
 .env.*

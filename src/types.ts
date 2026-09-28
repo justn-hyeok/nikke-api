@@ -128,7 +128,7 @@ export interface Skill {
   descriptionTemplate: Localized<string>;
   /** rendered plain-text description at max level (Lv10), placeholders substituted, markup stripped */
   descriptions: Localized<string>;
-  /** burst skill cooldown per level in centiseconds (2000 = 20s); undefined for skill1/skill2 */
+  /** burst skill cooldown per level in seconds; undefined for skill1/skill2 */
   cooltime?: number[];
   /** description_value_list: per slot, array of per-level values (index 0 = Lv1) */
   values: (string[] | null)[];

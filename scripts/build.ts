@@ -184,7 +184,8 @@ function mergeSkill(
     if (!s) return;
     id ??= s.id;
     iconName ??= s.icon;
-    cooltime ??= s.skill_cooltime_list ?? (s.skill_cooltime != null ? [s.skill_cooltime] : undefined);
+    const raw = s.skill_cooltime_list ?? (s.skill_cooltime != null ? [s.skill_cooltime] : undefined);
+    cooltime ??= raw?.map((v) => v / 100);
     if (s.name_localkey) name[locale] = s.name_localkey;
     const v = s.description_value_list ?? [];
     if (v.length > values.length) {

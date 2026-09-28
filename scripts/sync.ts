@@ -1,0 +1,111 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { cdnUrl } from "../src/cdn.js";
+
+const OUT_DIR = path.resolve("data/raw");
+
+// path templates -> output filename. {l} is replaced with each locale.
+const STATIC_RESOURCES: [string, string][] = [
+  ["character/character_id_map.json", "character_id_map.json"],
+  ["character/character_avatar_map.json", "character_avatar_map.json"],
+  ["character/character_skill_map.json", "character_skill_map.json"],
+  ["character/CharacterLevelTable.json", "CharacterLevelTable.json"],
+  ["character/AttractiveLevelTable.json", "AttractiveLevelTable.json"],
+  ["character/RecycleResearchStatTable.json", "RecycleResearchStatTable.json"],
+  ["character/scene_characeter_list_v2.json", "scene_characeter_list_v2.json"],
+  ["equip/favorite_rare_map.json", "favorite_rare_map.json"],
+  ["tower/tower_list.json", "tower_list.json"],
+  ["stage/stage_list.json", "stage_list.json"],
+  ["spine/spine-layers.json", "spine_layers.json"],
+  // nikke lists — filenames differ per locale; ko's complete list has NO suffix
+  // (nikke_list_ko_v2.json is a stale 154-entry subset)
+  ["character/ko/nikke_list_v2.json", "nikke_list_ko_v2.json"],
+  ["character/en/nikke_list_en_v2.json", "nikke_list_en_v2.json"],
+  ["character/ja/nikke_list_ja_v2.json", "nikke_list_ja_v2.json"],
+  ["character/zh-TW/nikke_list_zh-TW_v2.json", "nikke_list_zh-TW_v2.json"],
+];
+
+const LANG_RESOURCES: [string, string][] = [
+  ["character/{l}/character_face_list.json", "character_face_list_{l}.json"],
+  ["equip/ItemEquipTable-{l}.json", "ItemEquipTable_{l}.json"],
+  ["equip/equip_option_table_v2-{l}.json", "equip_option_table_{l}.json"],
+  ["archive/{l}/archive_list_{l}.json", "archive_list_{l}.json"],
+  ["scene/{l}/scene_list_{l}.json", "scene_list_{l}.json"],
+  ["scene/{l}/sudden_list_{l}.json", "sudden_list_{l}.json"],
+];
+
+const LOCALES = ["ko", "en", "ja", "zh-TW"];
+
+// per-character detail data, keyed by resource_id
+async function syncRoleData(): Promise<number> {
+  // read a synced nikke list to get resource ids
+  let ids: number[] = [];
+  try {
+    const raw = await import("node:fs/promises").then((fs) =>
+      fs.readFile(path.join(OUT_DIR, "nikke_list_en_v2.json"), "utf8"),
+    );
+    const list = JSON.parse(raw) as { resource_id: number }[];
+    ids = [...new Set(list.map((x) => x.resource_id))];
+  } catch {
+    console.log("roledata: nikke_list_en_v2.json missing, skipped");
+    return 0;
+  }
+
+  let done = 0;
+  const queue: [string, string][] = [];
+  for (const rid of ids) {
+    for (const l of LOCALES) {
+      // roledata uses lowercase locale (zh-tw), nikke_list uses zh-TW
+      queue.push([`roledata/${rid}-v2-${l.toLowerCase()}.json`, `roledata_${rid}_${l}.json`]);
+    }
+  }
+  const CONCURRENCY = 8;
+  for (let i = 0; i < queue.length; i += CONCURRENCY) {
+    const results = await Promise.all(
+      queue.slice(i, i + CONCURRENCY).map(([p, out]) => download(p, out)),
+    );
+    done += results.filter(Boolean).length;
+  }
+  return done;
+}
+
+async function download(pathTemplate: string, outName: string): Promise<boolean> {
+  const url = cdnUrl(pathTemplate);
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.log(`${res.status}  ${pathTemplate}`);
+      return false;
+    }
+    const body = await res.text();
+    JSON.parse(body); // sanity check
+    await writeFile(path.join(OUT_DIR, outName), body);
+    console.log(`ok  ${outName.padEnd(40)} ${(body.length / 1024).toFixed(1).padStart(8)} KB`);
+    return true;
+  } catch (e) {
+    console.log(`err ${pathTemplate}: ${(e as Error).message}`);
+    return false;
+  }
+}
+
+async function main() {
+  await mkdir(OUT_DIR, { recursive: true });
+
+  let ok = 0;
+  for (const [p, out] of STATIC_RESOURCES) {
+    if (await download(p, out)) ok++;
+  }
+  for (const locale of LOCALES) {
+    for (const [tpl, outTpl] of LANG_RESOURCES) {
+      const p = tpl.replace(/\{l\}/g, locale);
+      const out = outTpl.replace(/\{l\}/g, locale);
+      if (await download(p, out)) ok++;
+    }
+  }
+  console.log(`\n${ok} resources synced -> ${OUT_DIR}`);
+
+  const n = await syncRoleData();
+  console.log(`${n} roledata files synced`);
+}
+
+main();

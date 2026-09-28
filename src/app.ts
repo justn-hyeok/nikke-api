@@ -64,6 +64,8 @@ app.get("/", (c) =>
       "GET /api/nikkes": "list; filters: q, element, class, burst, corporation, weapon, rarity",
       "GET /api/nikkes/:id": "detail by id / resourceId / name (fuzzy)",
       "GET /api/meta/filters": "available filter values",
+      "GET /api/scenes": "story scene index (ko)",
+      "GET /api/scenes/:groupId": "scene dialogue lines (ko)",
       "GET /api/tables": "list raw table files",
       "GET /api/tables/:file": "raw synced table JSON",
       "GET /api/cdn?path=": "resolve a Blablalink CDN resource path to its URL",
@@ -108,6 +110,30 @@ app.get("/api/meta/filters", (c) => {
     weapons: uniq(characters.map((x) => x.weapon.type)),
     rarities: uniq(characters.map((x) => x.rarity)),
   });
+});
+
+app.get("/api/scenes", async (c) => {
+  const q = c.req.query("q");
+  try {
+    const index: { groupId: string; name: string; lines: number }[] = JSON.parse(
+      await readFile(path.join(DIST, "scenes.json"), "utf8"),
+    );
+    const list = q ? index.filter((s) => s.groupId.includes(q) || s.name?.includes(q)) : index;
+    return c.json({ count: list.length, scenes: list });
+  } catch {
+    return c.json({ count: 0, scenes: [] });
+  }
+});
+
+app.get("/api/scenes/:groupId", async (c) => {
+  const gid = c.req.param("groupId");
+  if (!/^[\w-]+$/.test(gid)) return c.json({ error: "invalid groupId" }, 400);
+  try {
+    const body = await readFile(path.join(DIST, "scenes", `${gid}.json`), "utf8");
+    return c.body(body, 200, { "Content-Type": "application/json" });
+  } catch {
+    return c.json({ error: "not found" }, 404);
+  }
 });
 
 app.get("/api/tables", async (c) => {

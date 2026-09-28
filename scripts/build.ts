@@ -145,7 +145,8 @@ async function main() {
 
   // --- copy remaining tables verbatim ---
   const rawFiles = await readdir(RAW);
-  const skip = (f: string) => f.startsWith("nikke_list_") || f.startsWith("roledata_");
+  const skip = (f: string) =>
+    f.startsWith("nikke_list_") || f.startsWith("roledata_") || /^scene_(d_|event_)/.test(f);
   let copied = 0;
   for (const f of rawFiles) {
     if (skip(f)) continue;
@@ -153,6 +154,30 @@ async function main() {
     copied++;
   }
   console.log(`tables: ${copied} files -> data/dist/tables/`);
+
+  // --- normalize ko scene dialogue files ---
+  const SCENES = path.join(OUT, "scenes");
+  await mkdir(SCENES, { recursive: true });
+  const sceneIndex: { groupId: string; name: string; lines: number }[] = [];
+  for (const f of rawFiles.filter((f) => /^scene_(d_|event_)/.test(f))) {
+    const d = JSON.parse(await readFile(path.join(RAW, f), "utf8"));
+    const gid = d.scenario_group_id?.value ?? f.replace(/^scene_|\.json$/g, "");
+    const records = d.scenario_group_id?.records?.value ?? [];
+    const lines = records.map((r: any) => ({
+      id: r.value?.id,
+      speaker: r.value?.speaker,
+      speakerName: r.speaker?.name_localkey?.character_name ?? r.value?.speaker,
+      text: r.quest_name,
+      window: r.value?.speech_window,
+    }));
+    await writeFile(
+      path.join(SCENES, `${gid}.json`),
+      JSON.stringify({ id: d.id, groupId: gid, name: d.scene_name, lines }),
+    );
+    sceneIndex.push({ groupId: gid, name: d.scene_name, lines: lines.length });
+  }
+  await writeFile(path.join(OUT, "scenes.json"), JSON.stringify(sceneIndex));
+  console.log(`scenes/: ${sceneIndex.length} dialogue files (ko)`);
 }
 
 // strip <color=#...>, <word_group=NNN>..</..> etc, keep inner text

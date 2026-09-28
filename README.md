@@ -26,7 +26,7 @@ BlablaLink(공식 위키 도구)의 CDN 데이터를 주기적으로 동기화�
 
 ## API 문서
 
-**요청/응답 형식 전체 문서 → [docs/API.md](docs/API.md)**
+**요청/응답 형식 전체 문서 → [API.md](API.md)**
 
 ## 문의
 

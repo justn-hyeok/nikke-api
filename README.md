@@ -30,4 +30,4 @@ BlablaLink(공식 위키 도구)의 CDN 데이터를 주기적으로 동기화�
 
 ## 문의
 
-문의나 요청사항은 **leegunwoo0325@gmail.com**으로 보내주시거나 **Issues** 기능을 활용해주시면 감사하겠습니다.
+문의나 요청사항은 **leegunwoo0325@gmail.com**으로 보내주시거나 **[Issues](https://github.com/leegunwoooo/nikke-api/issues)** 기능을 활용해주시면 감사하겠습니다.

@@ -24,56 +24,9 @@ BlablaLink(공식 위키 도구)의 CDN 데이터를 주기적으로 동기화�
 
 **라이브 주소**: https://nikke-api-gunwoos-projects.vercel.app
 
-## 엔드포인트
-
-| 메서드 | 경로 | 설명 |
-|--------|------|------|
-| GET | `/api/nikkes` | 캐릭터 목록 (경량) — 쿼리: `q`, `element`, `class`, `burst`, `corporation`, `weapon`, `rarity` |
-| GET | `/api/nikkes/:id` | 캐릭터 상세 — `id`는 캐릭터 ID, `resourceId`, 또는 이름(부분 일치) 가능 |
-| GET | `/api/meta/filters` | 사용 가능한 필터 값 목록 |
-| GET | `/api/tables` | 동기화된 원본 테이블 파일 목록 |
-| GET | `/api/tables/:file` | 원본 테이블 JSON |
-| GET | `/api/cdn?path=` | BlablaLink CDN 리소스 경로 → URL 변환 |
-
-### 예시
-
-```bash
-# 이름에 "아니스"가 포함된 모든 캐릭터 (부분 일치)
-curl "https://nikke-api-gunwoos-projects.vercel.app/api/nikkes?q=아니스"
-
-# 상세 조회 — ID(301201), resourceId(12), 이름 모두 가능
-curl "https://nikke-api-gunwoos-projects.vercel.app/api/nikkes/301201"
-
-# 속성 + 레어도 필터
-curl "https://nikke-api-gunwoos-projects.vercel.app/api/nikkes?element=Electronic&rarity=SSR"
-```
-
-### 응답 구조
-
-목록 응답은 경량입니다. 상세(`/api/nikkes/:id`)에서만 `details`(배경 스토리, 성우, 스킬, 레벨별 스탯, 호감도 시나리오 등)가 붙습니다.
+## API 문서
 
 **요청/응답 형식 전체 문서 → [docs/API.md](docs/API.md)**
-
-## 로컬 실행
-
-```bash
-npm install
-npm run sync      # CDN → data/raw 동기화
-npm run build     # data/dist 생성 (characters.json, details/, tables/)
-npm run dev       # 로컬 서버 (tsx watch)
-```
-
-타입체크: `npm run typecheck`
-
-## 데이터 갱신
-
-- 데이터(`data/`)는 Git에 커밋하지 않고 **배포 시 CDN에서 다시 받아옵니다**.
-- GitHub Actions(`.github/workflows/refresh-data.yml`)가 매일 Vercel Deploy Hook을 호출해 재배포 → 최신 데이터 반영.
-- 설정: Vercel Deploy Hook URL을 레포 Secret `VERCEL_DEPLOY_HOOK_URL`에 등록.
-
-## 기술 스택
-
-TypeScript · Hono · @hono/node-server · Vercel Serverless · esbuild (배포용 트랜스파일)
 
 ## 문의
 

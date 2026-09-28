@@ -4,13 +4,75 @@ on:
   schedule:
     # 매일 00:00 UTC (09:00 KST) — 패치 후 자동 반영
     - cron: "0 0 * * *"
-  workflow_dispatch: # 수동 실행 가능
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "데이터 변경 여부와 관계없이 강제 재배포"
+        type: boolean
+        default: false
 
 jobs:
   redeploy:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # 지난 배포 때의 지문을 캐시에서 복원 (키는 매번 새로 저장하므로 restore-keys로 최신을 찾음)
+      - name: Restore stored fingerprint
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache-fingerprint
+          key: data-fingerprint-${{ github.run_id }}
+          restore-keys: |
+            data-fingerprint-
+
+      # 대표 목록 파일들의 해시로 데이터 변경 여부 판정.
+      # roledata/scene_detail만 바뀌는 경우는 놓칠 수 있어 일요일엔 무조건 배포.
+      - name: Compute CDN fingerprint
+        id: fp
+        run: |
+          NEW=$(npx tsx scripts/fingerprint.ts | tail -1)
+          OLD=$(cat .cache-fingerprint 2>/dev/null || echo "none")
+          echo "new=$NEW" >> "$GITHUB_OUTPUT"
+          echo "old=$OLD" >> "$GITHUB_OUTPUT"
+          echo "fingerprint: $NEW (stored: $OLD)"
+
+      - name: Decide whether to redeploy
+        id: decide
+        run: |
+          FORCE="${{ github.event.inputs.force || 'false' }}"
+          DOW=$(date +%u)  # 7 = Sunday
+          if [ "$FORCE" = "true" ]; then
+            echo "deploy=yes" >> "$GITHUB_OUTPUT"; echo "reason=forced" >> "$GITHUB_OUTPUT"
+          elif [ "$DOW" = "7" ]; then
+            echo "deploy=yes" >> "$GITHUB_OUTPUT"; echo "reason=weekly-forced" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.fp.outputs.new }}" != "${{ steps.fp.outputs.old }}" ]; then
+            echo "deploy=yes" >> "$GITHUB_OUTPUT"; echo "reason=changed" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=no" >> "$GITHUB_OUTPUT"; echo "reason=unchanged" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Trigger Vercel deploy hook
+        if: steps.decide.outputs.deploy == 'yes'
         run: curl -fsS -X POST "$VERCEL_DEPLOY_HOOK_URL"
         env:
           VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+
+      - name: Save new fingerprint
+        if: steps.decide.outputs.deploy == 'yes'
+        run: echo "${{ steps.fp.outputs.new }}" > .cache-fingerprint
+
+      - name: Cache fingerprint
+        if: steps.decide.outputs.deploy == 'yes'
+        uses: actions/cache/save@v4
+        with:
+          path: .cache-fingerprint
+          key: data-fingerprint-${{ github.run_id }}

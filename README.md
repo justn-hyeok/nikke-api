@@ -1,4 +1,4 @@
-# nikke-data-api
+# nikke-api
 
 > [!WARNING]
 > **저작권 고지 — 반드시 읽어주세요**
@@ -13,16 +13,33 @@
 
 ## 소개
 
-승리의 여신: 니케(GODDESS OF VICTORY: NIKKE) 캐릭터 데이터를 제공하는 REST API입니다.
+승리의 여신: 니케(GODDESS OF VICTORY: NIKKE) 게임 데이터를 제공하는 REST API입니다.
 
-BlablaLink(공식 위키 도구)의 CDN 데이터를 주기적으로 동기화하여 항상 최신 캐릭터 정보를 제공합니다.
+BlablaLink(공식 위키 도구)의 CDN 데이터를 매일 동기화합니다. 데이터 변경이 감지될 때만 자동 재배포되어 항상 최신 상태를 유지합니다.
 
-- **캐릭터 202종** 전체 수록 (기본 정보 + 스킬/스탯/배경 상세)
+- **캐릭터 202종** — 기본 정보 + 스킬/스탯/배경/코스튬 상세
+- **스토리 대본 3079개** — 메인/이벤트/돌발/호감도 씬, 화자 아이콘·보이스 포함 (한국어)
+- **소장품 33종** — 레벨별 스탯·스킬 상세
+- **원본 테이블** — 레벨/스테이지/타워/장비 등 게임 데이터 테이블
 - **4개 언어** 지원: 한국어 `ko` / 영어 `en` / 일본어 `ja` / 중국어 번체 `zh-TW`
 - 스킬 설명은 **Lv10(최대 레벨) 기준**으로 렌더링된 텍스트 제공 (원본 템플릿·레벨별 수치도 포함)
-- 이미지는 BlablaLink CDN URL로 제공 (직접 재호스팅하지 않음)
+- 이미지·음성은 BlablaLink CDN URL로 제공 (직접 재호스팅하지 않음)
 
 **라이브 주소**: https://nikke-api-gunwoos-projects.vercel.app
+
+## 엔드포인트 요약
+
+| 엔드포인트 | 설명 |
+|------------|------|
+| `GET /api/nikkes` | 캐릭터 목록 (이름 검색, 속성/클래스/버스트/기업/무기/레어 필터) |
+| `GET /api/nikkes/:id` | 캐릭터 상세 — 스킬, 레벨별 스탯, 배경 스토리, 스쿼드, CV, 호감도 씬 |
+| `GET /api/scenes` | 씬 목록 — `?category=` `?nikke=` `?q=` `?limit=` `?offset=` |
+| `GET /api/scenes/:groupId` | 씬 대본 — 대사별 화자/아이콘/보이스 |
+| `GET /api/favorites` | 소장품 목록 — `?q=` `?rare=` |
+| `GET /api/favorites/:id` | 소장품 상세 — 레벨별 스탯, 컬렉션·전용 스킬 |
+| `GET /api/tables` / `GET /api/tables/:file` | 원본 테이블 목록/조회 |
+| `GET /api/meta/filters` | 사용 가능한 필터 값 목록 |
+| `GET /api/cdn?path=` | CDN 리소스 경로 → URL 변환 |
 
 ## API 문서
 

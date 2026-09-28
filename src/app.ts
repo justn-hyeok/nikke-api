@@ -66,6 +66,8 @@ app.get("/", (c) =>
       "GET /api/meta/filters": "available filter values",
       "GET /api/scenes": "story scene index (ko)",
       "GET /api/scenes/:groupId": "scene dialogue lines (ko)",
+      "GET /api/favorites": "소장품(favorite item) list; filters: q, rare",
+      "GET /api/favorites/:id": "소장품 detail — per-level stats, skills",
       "GET /api/tables": "list raw table files",
       "GET /api/tables/:file": "raw synced table JSON",
       "GET /api/cdn?path=": "resolve a Blablalink CDN resource path to its URL",
@@ -139,6 +141,37 @@ app.get("/api/scenes/:groupId", async (c) => {
   if (!/^[\w-]+$/.test(gid)) return c.json({ error: "invalid groupId" }, 400);
   try {
     const body = await readFile(path.join(DIST, "scenes", `${gid}.json`), "utf8");
+    return c.body(body, 200, { "Content-Type": "application/json" });
+  } catch {
+    return c.json({ error: "not found" }, 404);
+  }
+});
+
+app.get("/api/favorites", async (c) => {
+  const { q, rare } = c.req.query();
+  try {
+    let list: {
+      id: number;
+      rare?: string;
+      name: Record<string, string>;
+      weaponType?: string;
+    }[] = JSON.parse(await readFile(path.join(DIST, "favorites.json"), "utf8"));
+    if (rare) list = list.filter((x) => x.rare?.toLowerCase() === rare.toLowerCase());
+    if (q) {
+      const nq = norm(q);
+      list = list.filter((x) => Object.values(x.name).some((n) => norm(n).includes(nq)));
+    }
+    return c.json({ count: list.length, favorites: list });
+  } catch {
+    return c.json({ count: 0, favorites: [] });
+  }
+});
+
+app.get("/api/favorites/:id", async (c) => {
+  const id = c.req.param("id");
+  if (!/^\d+$/.test(id)) return c.json({ error: "invalid id" }, 400);
+  try {
+    const body = await readFile(path.join(DIST, "favorites", `${id}.json`), "utf8");
     return c.body(body, 200, { "Content-Type": "application/json" });
   } catch {
     return c.json({ error: "not found" }, 404);

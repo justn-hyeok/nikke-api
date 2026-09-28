@@ -7,7 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "sync": "tsx scripts/sync.ts"
+    "sync": "tsx scripts/sync.ts",
+    "build": "tsx scripts/build.ts",
+    "build:data": "npm run sync && npm run build"
   },
   "keywords": [],
   "type": "module",

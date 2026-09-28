@@ -1,0 +1,9 @@
+{
+  "buildCommand": "npm run build:data",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "data/dist/**"
+    }
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/index" }]
+}

@@ -16,6 +16,8 @@
 - [GET /api/meta/filters](#get-apimetafilters) — 필터 값 목록
 - [GET /api/tables](#get-apitables) — 원본 테이블 목록
 - [GET /api/tables/:file](#get-apitablesfile) — 원본 테이블 조회
+- [GET /api/scenes](#get-apiscenes) — 스토리 씬 목록 (한국어)
+- [GET /api/scenes/:groupId](#get-apiscenesgroupid) — 씬 대본 (한국어)
 - [GET /api/cdn](#get-apicdn) — CDN 경로 → URL 변환
 - [에러 응답](#에러-응답)
 
@@ -204,6 +206,63 @@ GET /api/nikkes/아니스
 ```
 GET /api/tables/CharacterLevelTable.json
 ```
+
+## GET /api/scenes
+
+스토리 씬 목록을 반환합니다 (한국어). 메인 스토리, 이벤트 스토리, 돌발 스토리 포함 — 약 2100개 그룹.
+
+쿼리 `q`로 그룹 ID 또는 씬 이름 부분 일치 검색 가능:
+
+```
+GET /api/scenes?q=발신자
+```
+
+```json
+{
+  "count": 2134,
+  "scenes": [
+    { "groupId": "d_ex_armory_01", "name": "무기고 괴담", "lines": 68 }
+  ]
+}
+```
+
+| 필드 | 설명 |
+|------|------|
+| `groupId` | 시나리오 그룹 ID (`d_main_*` 메인, `event_*` 이벤트, `d_ex_*` 돌발) |
+| `name` | 씬 이름 (한국어) |
+| `lines` | 대사 수 |
+
+## GET /api/scenes/:groupId
+
+해당 씬의 대본을 반환합니다 (한국어).
+
+```
+GET /api/scenes/d_main_01_01_s
+```
+
+```json
+{
+  "id": 1,
+  "groupId": "d_main_01_01_s",
+  "name": "첫 번째 접촉 : A",
+  "lines": [
+    {
+      "id": "d_main_01_01_s_1",
+      "speaker": "marian",
+      "speakerName": "마리안",
+      "text": "BA-01다운!\nBA-01다운!",
+      "window": "Speech"
+    }
+  ]
+}
+```
+
+| 필드 | 설명 |
+|------|------|
+| `lines[].speaker` | 화자 코드 (내부 식별자) |
+| `lines[].speakerName` | 화자 이름 (한국어, 내레이션 등은 코드 그대로일 수 있음) |
+| `lines[].text` | 대사 텍스트 |
+| `lines[].window` | 말풍선 타입 (`Speech` 등) |
 
 ## GET /api/cdn
 

@@ -23,6 +23,10 @@ const STATIC_RESOURCES: [string, string][] = [
   ["character/en/nikke_list_en_v2.json", "nikke_list_en_v2.json"],
   ["character/ja/nikke_list_ja_v2.json", "nikke_list_ja_v2.json"],
   ["character/zh-TW/nikke_list_zh-TW_v2.json", "nikke_list_zh-TW_v2.json"],
+  // ko scene/archive lists live at the unsuffixed path (same convention as nikke_list ko)
+  ["scene/ko/scene_list.json", "scene_list_ko.json"],
+  ["archive/ko/archive_list.json", "archive_list_ko.json"],
+  ["scene/ko/sudden_list.json", "sudden_list_ko.json"],
 ];
 
 const LANG_RESOURCES: [string, string][] = [
@@ -69,6 +73,36 @@ async function syncRoleData(): Promise<number> {
   return done;
 }
 
+// ko-only scene detail (dialogue) files, keyed by scenario_group_id
+async function syncScenes(): Promise<number> {
+  let groupIds: string[] = [];
+  try {
+    const fs = await import("node:fs/promises");
+    const blob = await Promise.all(
+      ["scene_list_ko.json", "sudden_list_ko.json", "archive_list_ko.json"].map((f) =>
+        fs.readFile(path.join(OUT_DIR, f), "utf8"),
+      ),
+    );
+    groupIds = [...new Set(blob.join("").matchAll(/"scenario_group_id"\s*:\s*"([^"]+)"/g))].map(
+      (m) => m[1],
+    );
+  } catch {
+    console.log("scenes: ko list files missing, skipped");
+    return 0;
+  }
+  let done = 0;
+  const CONCURRENCY = 8;
+  for (let i = 0; i < groupIds.length; i += CONCURRENCY) {
+    const results = await Promise.all(
+      groupIds
+        .slice(i, i + CONCURRENCY)
+        .map((gid) => download(`scene/ko/scene_detail_${gid}.json`, `scene_${gid}.json`)),
+    );
+    done += results.filter(Boolean).length;
+  }
+  return done;
+}
+
 async function download(pathTemplate: string, outName: string): Promise<boolean> {
   const url = cdnUrl(pathTemplate);
   try {
@@ -106,6 +140,9 @@ async function main() {
 
   const n = await syncRoleData();
   console.log(`${n} roledata files synced`);
+
+  const s = await syncScenes();
+  console.log(`${s} scene detail files synced (ko)`);
 }
 
 main();

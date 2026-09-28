@@ -285,6 +285,7 @@ GET /api/scenes/d_main_01_01_s
 | `lines[].speakerName` | 화자 이름 (한국어, 내레이션 등은 코드 그대로일 수 있음) |
 | `lines[].text` | 대사 텍스트 |
 | `lines[].window` | 말풍선 타입 (`Speech`, `Choice`, `Narration` 등) |
+| `lines[].speakerIcon` | 화자 아이콘 이미지 URL (호감도 씬에만 존재) |
 | `lines[].background` / `lines[].bgm` | 배경·BGM 리소스 코드 (호감도 씬에만 존재) |
 
 호감도 씬(`groupId`가 `d_nikke_*`)은 상단에 `type: "attractive"`, `nikke`, `attractiveLevel` 필드가 추가로 붙습니다.

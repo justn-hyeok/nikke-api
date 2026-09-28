@@ -224,6 +224,9 @@ async function main() {
       window: r.speech_window,
       background: r.set_background,
       bgm: r.play_bgm,
+      speakerIcon: r.speaker_detail?.resource_id
+        ? images(r.speaker_detail.resource_id, 0).icon
+        : undefined,
     }));
     await writeFile(
       path.join(SCENES, `${gid}.json`),

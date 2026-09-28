@@ -181,10 +181,17 @@ async function main() {
     groupId: string;
     name?: string;
     lines: number;
+    category: string;
     type?: string;
     nikke?: string;
     level?: number;
   }[] = [];
+  const sceneCategory = (gid: string) =>
+    gid.startsWith("d_main") ? "main"
+    : gid.startsWith("event_") ? "event"
+    : gid.startsWith("d_nikke") ? "attractive"
+    : gid.startsWith("d_ex") ? "sudden"
+    : "etc";
   for (const f of rawFiles.filter((f) => /^scene_(d_|event_)/.test(f))) {
     const d = JSON.parse(await readFile(path.join(RAW, f), "utf8"));
     const gid = d.scenario_group_id?.value ?? f.replace(/^scene_|\.json$/g, "");
@@ -200,7 +207,7 @@ async function main() {
       path.join(SCENES, `${gid}.json`),
       JSON.stringify({ id: d.id, groupId: gid, name: d.scene_name, lines }),
     );
-    sceneIndex.push({ groupId: gid, name: d.scene_name, lines: lines.length });
+    sceneIndex.push({ groupId: gid, name: d.scene_name, lines: lines.length, category: sceneCategory(gid) });
   }
 
   // --- normalize ko attractive (호감도) dialogue files ---
@@ -233,6 +240,7 @@ async function main() {
       groupId: gid,
       name: meta?.title,
       lines: lines.length,
+      category: "attractive",
       type: "attractive",
       nikke: meta?.nikke,
       level: meta?.level,

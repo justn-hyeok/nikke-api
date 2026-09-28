@@ -211,17 +211,35 @@ GET /api/tables/CharacterLevelTable.json
 
 스토리 씬 목록을 반환합니다 (한국어). 메인/이벤트/돌발 스토리 + **호감도(Attractive) 시나리오** 포함 — 약 3000개 그룹.
 
-쿼리 `q`로 그룹 ID 또는 씬 이름 부분 일치 검색 가능:
+### 쿼리 파라미터
+
+| 파라미터 | 설명 | 예시 |
+|----------|------|------|
+| `q` | 그룹 ID·씬 이름 부분 일치 | `?q=발신자` |
+| `category` | 카테고리 필터 | `main` / `event` / `sudden` / `attractive` |
+| `nikke` | 호감도 씬 대상 니케 이름 부분 일치 | `?nikke=아니스` |
+| `limit` | 반환 개수 제한 (최대 500) | `?limit=50` |
+| `offset` | 시작 위치 (페이지네이션) | `?offset=50` |
 
 ```
-GET /api/scenes?q=발신자
+GET /api/scenes?category=attractive&nikke=아니스
+GET /api/scenes?category=main&limit=20&offset=0
 ```
 
 ```json
 {
-  "count": 2134,
+  "count": 5,
+  "offset": 0,
   "scenes": [
-    { "groupId": "d_ex_armory_01", "name": "무기고 괴담", "lines": 68 }
+    {
+      "groupId": "d_nikke_anis_01",
+      "name": "방주 나들이",
+      "lines": 128,
+      "category": "attractive",
+      "type": "attractive",
+      "nikke": "아니스",
+      "level": 1
+    }
   ]
 }
 ```
@@ -231,6 +249,7 @@ GET /api/scenes?q=발신자
 | `groupId` | 시나리오 그룹 ID (`d_main_*` 메인, `event_*` 이벤트, `d_ex_*` 돌발, `d_nikke_*` 호감도) |
 | `name` | 씬 이름 (한국어) |
 | `lines` | 대사 수 |
+| `category` | `main` / `event` / `sudden` / `attractive` / `etc` |
 | `type` | `"attractive"`이면 호감도 시나리오 (일반 스토리는 없음) |
 | `nikke` | 호감도 시나리오 대상 니케 (호감도만) |
 | `level` | 필요 호감도 레벨 (호감도만) |

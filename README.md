@@ -41,6 +41,8 @@ BlablaLink(공식 위키 도구)의 CDN 데이터를 매일 동기화합니다. 
 | `GET /api/meta/filters` | 사용 가능한 필터 값 목록 |
 | `GET /api/cdn?path=` | CDN 리소스 경로 → URL 변환 |
 
+공통으로 `?fields=id,name.ko`처럼 필요한 필드만 골라 받을 수 있고, 응답에는 `Cache-Control`/`ETag`가 붙습니다.
+
 ## API 문서
 
 **요청/응답 형식 전체 문서 → [API.md](API.md)**

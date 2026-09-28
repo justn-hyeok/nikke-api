@@ -21,6 +21,8 @@
 - [GET /api/favorites](#get-apifavorites) — 소장품 목록
 - [GET /api/favorites/:id](#get-apifavoritesid) — 소장품 상세 (레벨별 스탯·스킬)
 - [GET /api/cdn](#get-apicdn) — CDN 경로 → URL 변환
+- [공통: 필드 선택 `?fields=`](#공통-필드-선택-fields)
+- [공통: 캐시 헤더](#공통-캐시-헤더)
 - [에러 응답](#에러-응답)
 
 ---
@@ -363,6 +365,30 @@ GET /api/cdn?path=character/ko/nikke_list_v2.json
 ```
 
 `path`에 `..`가 포함되면 400.
+
+---
+
+## 공통: 필드 선택 `?fields=`
+
+`/api/nikkes`, `/api/nikkes/:id`, `/api/scenes`(목록), `/api/favorites`, `/api/favorites/:id`는 `?fields=`로 응답 객체를 필요한 필드만 남길 수 있습니다. 콤마로 구분하며, 점(`.`)으로 중첩 필드를 지정합니다. 목록 응답은 각 항목에 적용되고 `count` 등 래퍼 필드는 유지됩니다.
+
+```
+GET /api/nikkes?fields=id,name.ko,element
+GET /api/nikkes/라피?fields=id,details.skills
+```
+
+```json
+{ "count": 202, "characters": [{ "id": 1, "name": { "ko": "..." }, "element": "Fire" }] }
+```
+
+---
+
+## 공통: 캐시 헤더
+
+데이터는 재배포 시에만 바뀌므로 성공(200) 응답에 다음 헤더가 붙습니다.
+
+- `Cache-Control: public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400`
+- `ETag: W/"..."` — 데이터 버전(`syncedAt`) + 요청 URL 기준. `If-None-Match`로 요청하면 변경이 없을 때 `304 Not Modified`를 반환합니다.
 
 ---
 

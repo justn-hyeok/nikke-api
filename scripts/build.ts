@@ -124,6 +124,13 @@ async function main() {
   }
 
   const characters = [...byId.values()].sort((a, b) => a.id - b.id);
+  const byRes = new Map(characters.map((c) => [c.resourceId, c]));
+  const charRef = (resourceId?: number) => {
+    const n = resourceId != null ? byRes.get(resourceId) : undefined;
+    return n
+      ? { id: n.id, resourceId: n.resourceId, name: n.name, rarity: n.rarity, image: n.images.icon }
+      : null;
+  };
   await writeFile(
     path.join(OUT, "characters.json"),
     JSON.stringify({ count: characters.length, syncedAt: new Date().toISOString(), characters }),
@@ -137,11 +144,92 @@ async function main() {
   for (const n of characters) {
     const detail = await buildDetail(n.resourceId);
     if (detail) {
+      // raw teammate entries -> character refs
+      if (Array.isArray(detail.teammateList)) {
+        detail.teammateList = (detail.teammateList as any[]).map((t) => ({
+          nameCode: t.name_code,
+          ...(charRef(t.resource_id) ?? {
+            id: t.id,
+            resourceId: t.resource_id,
+            name: { ko: t.name_localkey },
+            rarity: t.original_rare,
+          }),
+        }));
+      }
       await writeFile(path.join(DETAILS, `${n.id}.json`), JSON.stringify(detail));
       detailCount++;
     }
   }
   console.log(`details/: ${detailCount} character detail files`);
+
+  // --- name_code / avatar-id → character maps (for shared-profile lookups) ---
+  const idMap: { name_code: number; id: number; resource_id: number }[] = JSON.parse(
+    await readFile(path.join(RAW, "character_id_map.json"), "utf8"),
+  );
+  const nameCodeMap: Record<number, number> = {};
+  for (const e of idMap) nameCodeMap[e.name_code] ??= e.resource_id;
+  await writeFile(path.join(OUT, "name_code_map.json"), JSON.stringify(nameCodeMap));
+  const avatarMap: Record<number, { resourceId: number; costumeIndex: number }> = {};
+  const avatars: { id: number; resource_id: number; costume_index: number }[] = JSON.parse(
+    await readFile(path.join(RAW, "character_avatar_map.json"), "utf8"),
+  );
+  for (const a of avatars) avatarMap[a.id] = { resourceId: a.resource_id, costumeIndex: a.costume_index };
+  await writeFile(path.join(OUT, "avatar_map.json"), JSON.stringify(avatarMap));
+
+  // --- equipment item map (tid → localized name/icon), for profile lookups ---
+  const equipTables = await Promise.all(
+    LOCALES.map((l) => readJson<any>(`ItemEquipTable_${l}.json`)),
+  );
+  const equipItemMap: Record<number, {
+    name: Partial<Record<Locale, string>>;
+    class?: string; rare?: string; slot?: string; icon?: string;
+  }> = {};
+  const slotOf = (rid?: string) =>
+    rid?.match(/icn_equipment_(head|torso|arm|leg)_/)?.[1];
+  for (const [li, tbl] of equipTables.entries()) {
+    for (const r of tbl?.records ?? []) {
+      const e = (equipItemMap[r.id] ??= { name: {} });
+      if (r.name_localkey) e.name[LOCALES[li]] = r.name_localkey;
+      e.class ??= r.class;
+      e.rare ??= r.item_rare;
+      e.slot ??= slotOf(r.resource_id);
+      e.icon ??= r.resource_id ? icon("equip", r.resource_id) : undefined;
+    }
+  }
+  await writeFile(path.join(OUT, "equip_item_map.json"), JSON.stringify(equipItemMap));
+
+  // --- equipment option map (option id → group name + rank) ---
+  const optTables = await Promise.all(
+    LOCALES.map((l) => readJson<any>(`equip_option_table_${l}.json`)),
+  );
+  // one option kind spans 3 group rows (15 ids); rank is 1-15 across the
+  // whole state_effect_group_id family, not 1-5 within a single group
+  const optFamilies = new Map<number, number[]>();
+  for (const g of optTables.find(Boolean) ?? []) {
+    const fam = g.state_effect_group_id ?? g.id;
+    const arr = optFamilies.get(fam) ?? [];
+    for (const oid of g.state_effect_id_list ?? []) arr.push(oid);
+    optFamilies.set(fam, arr);
+  }
+  const optRank = new Map<number, { groupId: number; rank: number }>();
+  for (const [fam, ids] of optFamilies) {
+    ids.forEach((oid, i) => optRank.set(oid, { groupId: fam, rank: i + 1 }));
+  }
+  const equipOptionMap: Record<number, {
+    groupId: number; rank: number; name: Partial<Record<Locale, string>>;
+  }> = {};
+  for (const [li, tbl] of optTables.entries()) {
+    for (const g of tbl ?? []) {
+      for (const oid of g.state_effect_id_list ?? []) {
+        const r = optRank.get(oid);
+        const e = (equipOptionMap[oid] ??= {
+          groupId: r?.groupId ?? g.id, rank: r?.rank ?? 0, name: {},
+        });
+        if (g.description_localkey) e.name[LOCALES[li]] = g.description_localkey;
+      }
+    }
+  }
+  await writeFile(path.join(OUT, "equip_option_map.json"), JSON.stringify(equipOptionMap));
 
   // --- copy remaining tables verbatim ---
   const rawFiles = await readdir(RAW);
@@ -151,7 +239,8 @@ async function main() {
     /^scene_(d_|event_)/.test(f) ||
     f.startsWith("attract_") ||
     f.startsWith("voice_map_") ||
-    /^favorite_\d+_/.test(f);
+    /^favorite_\d+_/.test(f) ||
+    /^cube_\d+_/.test(f);
   let copied = 0;
   for (const f of rawFiles) {
     if (skip(f)) continue;
@@ -192,6 +281,10 @@ async function main() {
     const r = rid ?? (code ? speakerResources.get(code) : undefined);
     return r ? images(r, 0).icon : undefined;
   };
+  const speakerNikke = (code: string | undefined, rid: number | undefined) => {
+    const r = rid ?? (code ? speakerResources.get(code) : undefined);
+    return charRef(r) ?? undefined;
+  };
   // per-chapter voice maps: d_main_NN -> set of speech ids that have voice audio
   const voiceMaps = new Map<string, Set<string>>();
   for (const f of rawFiles.filter((f) => f.startsWith("voice_map_"))) {
@@ -199,9 +292,9 @@ async function main() {
     voiceMaps.set(key, new Set(JSON.parse(await readFile(path.join(RAW, f), "utf8"))));
   }
   const voiceUrl = (gid: string, id: string | undefined) =>
-    id && voiceMaps.get(gid.match(/d_main_\d+/)?.[0] ?? "")?.has(id)
+    id && voiceMaps.get(gid.match(/d_main_\d+/)?.[0] ?? gid)?.has(id)
       ? cdnUrl(`voice/ko/${id}.mp3`)
-      : undefined;
+      : null;
 
   const sceneIndex: {
     groupId: string;
@@ -229,6 +322,7 @@ async function main() {
       text: r.quest_name,
       window: r.value?.speech_window,
       speakerIcon: speakerIcon(r.value?.speaker, undefined),
+      speakerNikke: speakerNikke(r.value?.speaker, undefined),
       voice: voiceUrl(gid, r.value?.id),
     }));
     await writeFile(
@@ -253,6 +347,8 @@ async function main() {
       background: r.set_background,
       bgm: r.play_bgm,
       speakerIcon: speakerIcon(r.speaker, r.speaker_detail?.resource_id),
+      speakerNikke: speakerNikke(r.speaker, r.speaker_detail?.resource_id),
+      voice: voiceUrl(gid, r.id),
     }));
     await writeFile(
       path.join(SCENES, `${gid}.json`),
@@ -366,6 +462,7 @@ async function main() {
     const item = {
       id,
       nameCode: first.name_code,
+      character: charRef(nameCodeMap[first.name_code]) ?? undefined,
       rare: first.favorite_rare,
       type: first.favorite_type,
       weaponType: first.weapon_type,
@@ -394,6 +491,106 @@ async function main() {
   favIndex.sort((a, b) => a.id - b.id);
   await writeFile(path.join(OUT, "favorites.json"), JSON.stringify(favIndex));
   console.log(`favorites/: ${favIndex.length} items`);
+
+  // --- normalize harmony cube files ---
+  const CUBES = path.join(OUT, "cubes");
+  await mkdir(CUBES, { recursive: true });
+  const cubeIds = [
+    ...new Set(
+      rawFiles
+        .filter((f) => /^cube_\d+_ko\.json$/.test(f))
+        .map((f) => f.replace(/^cube_(\d+)_ko\.json$/, "$1")),
+    ),
+  ];
+  const cubeIndex: { id: number; name: Partial<Record<Locale, string>>; rare?: string }[] = [];
+  for (const idStr of cubeIds) {
+    const files = await Promise.all(LOCALES.map((l) => readJson<any>(`cube_${idStr}_${l}.json`)));
+    const first = files.find(Boolean);
+    if (!first) continue;
+    const id = Number(idStr);
+    const name: Partial<Record<Locale, string>> = {};
+    const description: Partial<Record<Locale, string>> = {};
+    const location: Partial<Record<Locale, string>> = {};
+    files.forEach((r, i) => {
+      if (!r) return;
+      const l = LOCALES[i];
+      if (r.name_localkey) name[l] = r.name_localkey;
+      if (r.description_localkey) description[l] = r.description_localkey;
+      if (r.location_localkey) location[l] = r.location_localkey;
+    });
+    // group per-level skill entries by group_id, merge locales
+    const skillGroups = new Map<number, any[]>();
+    for (const r of files) {
+      for (const e of (r?.harmonycube_skill_group ?? []).filter(Boolean)) {
+        const arr = skillGroups.get(e.group_id) ?? [];
+        if (!arr.some((x) => x.skill_level === e.skill_level)) arr.push(e);
+        skillGroups.set(e.group_id, arr);
+      }
+    }
+    const skills = [...skillGroups.entries()].map(([groupId, entries]) => {
+      const sName: Partial<Record<Locale, string>> = {};
+      const descTemplate: Partial<Record<Locale, string>> = {};
+      const descs: Partial<Record<Locale, string>> = {};
+      let values: (string[] | null)[] = [];
+      entries.sort((a, b) => a.skill_level - b.skill_level);
+      for (const e of entries) {
+        const v = (e.description_value_list ?? []).map((x: any) => x.description_value ?? null);
+        if (v.length > values.length) values = v;
+      }
+      files.forEach((r, i) => {
+        const l = LOCALES[i];
+        const top = (r?.harmonycube_skill_group ?? [])
+          .filter((e: any) => e && e.group_id === groupId)
+          .sort((a: any, b: any) => b.skill_level - a.skill_level)[0];
+        if (!top) return;
+        if (top.name_localkey) sName[l] = top.name_localkey;
+        if (top.description_localkey) {
+          descTemplate[l] = top.description_localkey;
+          const v = (top.description_value_list ?? []).map((x: any) => x.description_value ?? null);
+          const maxLv = Math.max(Math.max(...v.map((x: any) => x?.length ?? 0)) - 1, 0);
+          descs[l] = renderDescription(top.description_localkey, v, maxLv);
+        }
+      });
+      const anyEntry = entries[entries.length - 1];
+      return {
+        id: groupId,
+        maxLevel: entries.length,
+        icon: anyEntry?.icon ? skillIcon(anyEntry.icon) : undefined,
+        name: sName,
+        descriptionTemplate: descTemplate,
+        descriptions: descs,
+        values,
+      };
+    });
+    const stats = (first.atk ?? []).map((_: number, i: number) => ({
+      level: i + 1,
+      atk: first.atk[i],
+      def: first.def?.[i],
+      hp: first.hp?.[i],
+      power: first.powers?.[i],
+      skillLevels: [first.level1?.[i], first.level2?.[i], first.level3?.[i]],
+    }));
+    await writeFile(
+      path.join(CUBES, `${id}.json`),
+      JSON.stringify({
+        id,
+        name,
+        description,
+        location,
+        rare: first.item_rare,
+        class: first.class,
+        order: first.order,
+        bg: first.bg,
+        bgColor: first.bg_color,
+        stats,
+        skills,
+      }),
+    );
+    cubeIndex.push({ id, name, rare: first.item_rare });
+  }
+  cubeIndex.sort((a, b) => a.id - b.id);
+  await writeFile(path.join(OUT, "cubes.json"), JSON.stringify(cubeIndex));
+  console.log(`cubes/: ${cubeIndex.length} items`);
 }
 
 // strip <color=#...>, <word_group=NNN>..</..> etc, keep inner text
@@ -467,6 +664,42 @@ async function buildDetail(resourceId: number): Promise<NikkeDetail | null> {
     mergeSkill("burst", roles, (r) => r.ulti_skill_detail),
   ].filter((s): s is Skill => s !== null);
 
+  // character voice lines — audio exists for ko/en/ja only
+  const voiceById = new Map<number, NonNullable<NikkeDetail["voices"]>[number]>();
+  roles.forEach((r, i) => {
+    if (!r) return;
+    const l = LOCALES[i];
+    for (const v of r.character_dialog_group_list ?? []) {
+      let e = voiceById.get(v.id);
+      if (!e) {
+        e = {
+          id: v.id,
+          categoryGroup: v.category_group,
+          order: v.order,
+          isTeaser: v.is_teaser,
+          conditionAttractiveLevel: v.condition_attractive_level,
+          speechId: v.speech_id,
+          label: {},
+          text: {},
+          voice: v.speech_id
+            ? Object.fromEntries(
+                (["ko", "en", "ja"] as const).map((lang) => [
+                  lang,
+                  cdnUrl(`voice/${lang}/${v.speech_id}.mp3`),
+                ]),
+              )
+            : {},
+        };
+        voiceById.set(v.id, e);
+      }
+      if (v.voice_description) e.label[l] = v.voice_description;
+      if (v.speech_localkey) e.text[l] = v.speech_localkey;
+    }
+  });
+  const voices = [...voiceById.values()].sort(
+    (a, b) => (a.order ?? 0) - (b.order ?? 0),
+  );
+
   return {
     backstory,
     squad: first.squad_detail
@@ -500,6 +733,7 @@ async function buildDetail(resourceId: number): Promise<NikkeDetail | null> {
     },
     teammateList: first.teammate_list,
     attractiveScenarios: first.attractive_scenario_list,
+    voices: voices.length ? voices : undefined,
   };
 }
 

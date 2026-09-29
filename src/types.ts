@@ -112,6 +112,17 @@ export interface RawRoleData {
   skill2_id?: number;
   teammate_list?: Record<string, unknown>;
   attractive_scenario_list?: Record<string, unknown>;
+  character_dialog_group_list?: {
+    id: number;
+    speech_group_id?: number;
+    category_group?: number;
+    order?: number;
+    is_teaser?: boolean;
+    voice_description?: string;
+    condition_attractive_level?: number;
+    speech_id?: string;
+    speech_localkey?: string;
+  }[];
   character_level_attack_list?: number[];
   character_level_defence_list?: number[];
   character_level_hp_list?: number[];
@@ -161,4 +172,16 @@ export interface NikkeDetail {
   statsPerLevel: { attack?: number[]; defence?: number[]; hp?: number[] };
   teammateList?: unknown;
   attractiveScenarios?: unknown;
+  /** character voice lines; audio in ko/en/ja (zh-TW has no dub) */
+  voices?: {
+    id: number;
+    categoryGroup?: number;
+    order?: number;
+    isTeaser?: boolean;
+    conditionAttractiveLevel?: number;
+    speechId?: string;
+    label: Localized<string>;
+    text: Localized<string>;
+    voice: { ko?: string; en?: string; ja?: string };
+  }[];
 }

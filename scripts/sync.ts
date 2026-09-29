@@ -89,8 +89,14 @@ async function syncScenes(): Promise<number> {
     for (const gid of groupIds) {
       queue.push([`scene/ko/scene_detail_${gid}.json`, `scene_${gid}.json`]);
     }
-    // per-chapter voice maps (main story only): d_main_NN -> speech ids with audio
-    for (const p of new Set(groupIds.map((g) => g.match(/d_main_\d+/)?.[0]).filter(Boolean))) {
+    // voice maps — same key rule as the SPA: d_main_NN for main, whole gid for events
+    // (fully-voiced events have a map per group; others 404 harmlessly)
+    const voiceKeys = new Set(
+      groupIds
+        .map((g) => g.match(/d_main_\d+/)?.[0] ?? (g.startsWith("event_") ? g : null))
+        .filter(Boolean) as string[],
+    );
+    for (const p of voiceKeys) {
       queue.push([`scene/voice_map/${p}.json`, `voice_map_${p}.json`]);
     }
   } catch {
@@ -153,6 +159,30 @@ async function syncFavorites(): Promise<number> {
   return done;
 }
 
+// harmony cubes — no index file exists, so probe the known tid range
+async function syncCubes(): Promise<number> {
+  const tids: number[] = [];
+  for (let tid = 1000300; tid <= 1000399; tid++) {
+    const res = await fetch(cdnUrl(`equip/ko/cube_${tid}.json`), { method: "HEAD" });
+    if (res.ok) tids.push(tid);
+  }
+  const queue: [string, string][] = [];
+  for (const tid of tids) {
+    for (const l of LOCALES) {
+      queue.push([`equip/${l.toLowerCase()}/cube_${tid}.json`, `cube_${tid}_${l}.json`]);
+    }
+  }
+  let done = 0;
+  const CONCURRENCY = 8;
+  for (let i = 0; i < queue.length; i += CONCURRENCY) {
+    const results = await Promise.all(
+      queue.slice(i, i + CONCURRENCY).map(([p, out]) => download(p, out)),
+    );
+    done += results.filter(Boolean).length;
+  }
+  return done;
+}
+
 async function download(pathTemplate: string, outName: string): Promise<boolean> {
   const url = cdnUrl(pathTemplate);
   try {
@@ -196,6 +226,9 @@ async function main() {
 
   const fv = await syncFavorites();
   console.log(`${fv} favorite item files synced`);
+
+  const cb = await syncCubes();
+  console.log(`${cb} harmony cube files synced`);
 }
 
 main();

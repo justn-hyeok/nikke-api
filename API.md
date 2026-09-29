@@ -20,6 +20,9 @@
 - [GET /api/scenes/:groupId](#get-apiscenesgroupid) — 씬 대본 (한국어)
 - [GET /api/favorites](#get-apifavorites) — 소장품 목록
 - [GET /api/favorites/:id](#get-apifavoritesid) — 소장품 상세 (레벨별 스탯·스킬)
+- [GET /api/cubes](#get-apicubes) — 하모니 큐브 목록
+- [GET /api/cubes/:id](#get-apicubesid) — 큐브 상세 (레벨별 스탯·스킬)
+- [GET /api/user](#get-apiuser) — 유저 프로필 조회 (공유 링크)
 - [GET /api/cdn](#get-apicdn) — CDN 경로 → URL 변환
 - [공통: 필드 선택 `?fields=`](#공통-필드-선택-fields)
 - [공통: 캐시 헤더](#공통-캐시-헤더)
@@ -148,8 +151,24 @@ GET /api/nikkes?element=Electronic&rarity=SSR
       "defence": [...],
       "hp": [...]
     },
-    "teammateList": [ ... ],
-    "attractiveScenarios": [ ... ]
+    "teammateList": [
+      { "nameCode": 5071, "id": 201401, "resourceId": 14,
+        "name": { "ko": "네온 : 블루 오션", ... }, "rarity": "SSR", "image": "https://..." }
+    ],
+    "attractiveScenarios": [ ... ],
+    "voices": [
+      {
+        "id": 120001,
+        "categoryGroup": 1,
+        "order": 101,
+        "isTeaser": true,
+        "conditionAttractiveLevel": 1,
+        "speechId": "c012_Lobby_Touch_1",
+        "label": { "ko": "로비 터치 I", ... },
+        "text": { "ko": "믿는 버릇을 들이라고? 하하. 농담도.", ... },
+        "voice": { "ko": ".../c012_Lobby_Touch_1.mp3", "en": "...", "ja": "..." }
+      }
+    ]
   }
 }
 ```
@@ -163,6 +182,10 @@ GET /api/nikkes?element=Electronic&rarity=SSR
 | `descriptionTemplate` | 원본 템플릿 (플레이스홀더 포함) |
 | `values` | 레벨별 원본 수치 배열 (Lv1~Lv10) |
 | `cooltime` | 버스트 쿨타임, 초 단위 |
+
+### `voices[]` 필드
+
+캐릭터 대사/보이스 목록 (로비 터치, 전투 진입·승리, 호감도 구간 대사 등). `label`은 대사 종류(언어별), `text`는 대사 텍스트(언어별), `voice`는 ko/en/ja 음성 mp3 URL (zh-TW 보이스는 존재하지 않음). `conditionAttractiveLevel`은 대사 해금에 필요한 호감도 레벨.
 
 ### 복수 매칭 시
 
@@ -292,7 +315,8 @@ GET /api/scenes/d_main_01_01_s
 | `lines[].text` | 대사 텍스트 |
 | `lines[].window` | 말풍선 타입 (`Speech`, `Choice`, `Narration` 등) |
 | `lines[].speakerIcon` | 화자 아이콘 이미지 URL (화자가 캐릭터로 매핑될 때 존재, NPC 포함) |
-| `lines[].voice` | 해당 대사의 한국어 보이스 mp3 URL (보이스 있는 메인 스토리 대사만 존재) |
+| `lines[].speakerNikke` | 화자가 플레이어블 니케일 때 `{id, resourceId, name(4개 언어), rarity, image}` — NPC·시스템 화자는 필드 없음 |
+| `lines[].voice` | 해당 대사의 한국어 보이스 mp3 URL. 보이스가 없는 씬에서는 `null` |
 | `lines[].background` / `lines[].bgm` | 배경·BGM 리소스 코드 (호감도 씬에만 존재) |
 
 호감도 씬(`groupId`가 `d_nikke_*`)은 상단에 `type: "attractive"`, `nikke`, `attractiveLevel` 필드가 추가로 붙습니다.
@@ -301,7 +325,7 @@ GET /api/scenes/d_main_01_01_s
 
 ## GET /api/favorites
 
-소장품(페이버릿 아이템) 목록을 반환합니다 — 33종 (R/SR/SSR).
+소장품과 애장품 목록을 반환합니다 — 33종 (R/SR/SSR).
 
 ### 쿼리 파라미터
 
@@ -327,6 +351,8 @@ GET /api/scenes/d_main_01_01_s
 {
   "id": 200101,
   "nameCode": 5020,
+  "character": { "id": 207201, "resourceId": 72,
+    "name": { "ko": "디젤", ... }, "rarity": "SSR", "image": "https://..." },
   "rare": "SSR",
   "weaponType": "MG",
   "maxLevel": 2,
@@ -348,6 +374,179 @@ GET /api/scenes/d_main_01_01_s
 | `skills[].descriptions` | 최대 레벨 기준 렌더링된 설명 (언어별) |
 | `skills[].descriptionTemplate` / `skills[].values` | 원본 템플릿 + 레벨별 수치 배열 |
 | `skills[].infoLabel` | 연계 스킬 종류 표기 (예: "버스트 스킬", "스킬2") |
+
+## GET /api/cubes
+
+하모니 큐브 목록을 반환합니다 — 17종 (전부 SSR).
+
+| 파라미터 | 설명 | 예시 |
+|----------|------|------|
+| `q` | 이름 부분 일치 (전 언어) | `?q=어설트` |
+
+```json
+{
+  "count": 17,
+  "cubes": [
+    { "id": 1000301, "rare": "SSR", "name": { "ko": "렐릭 어설트 큐브", "en": "Assault Cube", ... } }
+  ]
+}
+```
+
+## GET /api/cubes/:id
+
+큐브 상세를 반환합니다.
+
+```json
+{
+  "id": 1000303,
+  "name": { "ko": "렐릭 베어 큐브", ... },
+  "description": { "ko": "...", ... },
+  "location": { "ko": "로스트 섹터 4에서 획득 가능", ... },
+  "rare": "SSR",
+  "class": "All",
+  "stats": [
+    { "level": 1, "atk": 390, "def": 78, "hp": 11800, "power": 184,
+      "skillLevels": [1, 0, 0] }
+  ],
+  "skills": [
+    {
+      "id": 40091,
+      "maxLevel": 7,
+      "icon": "https://...",
+      "name": { "ko": "퀵 리로드 HC", ... },
+      "descriptionTemplate": { "ko": "...{description_value_01}% ...", ... },
+      "descriptions": { "ko": "■ 전투 시작 시\n[재장전 속도 11.25% ▲]", ... },
+      "values": [ ... ]
+    }
+  ]
+}
+```
+
+| 필드 | 설명 |
+|------|------|
+| `stats[]` | 큐브 레벨별 스탯 — `atk`, `def`, `hp`, `power`, `skillLevels` (스킬 그룹별 레벨) |
+| `skills[]` | 큐브 스킬 — `descriptions`는 최대 레벨 기준 렌더링, `values`는 레벨별 수치 |
+
+## GET /api/user
+
+BlablaLink 공유 프로필 링크로 유저 프로필을 조회합니다. 서버에 설정된 조회용 계정이 대신 호출하므로, API 사용자는 자격증명 없이 공유 링크만 붙이면 됩니다.
+
+### 쿼리 파라미터
+
+| 파라미터 | 설명 |
+|----------|------|
+| `openid` | 공유 링크의 base64 openid 값, 또는 공유 URL 전체 (`https://www.blablalink.com/user?openid=...` 통째로 넣어도 됨) |
+| `url` | `openid`와 동일 — 전체 URL |
+
+```
+GET /api/user?openid=MjkwODAtNjk1NTExMjA3MDczMzcyNTYwMg==
+GET /api/user?url=https://www.blablalink.com/user?openid=MjkwODAt...
+```
+
+### 응답
+
+```json
+{
+  "intlOpenId": "6955112070733725602",
+  "areaId": 83,
+  "profile": {
+    "nickname": "둔R",
+    "level": 333,
+    "icon": { "nameCode": 512201, "id": 110501, "name": { "ko": "볼륨", ... }, "image": "https://.../si_cxxx.webp" },
+    "teamCombat": 355847,
+    "nikkeCount": 111,
+    "costumeCount": 6,
+    "campaign": {
+      "normal": { "stageId": 6040043, "chapter": 41, "mode": "Normal", "stage": "40-35 STAGE" },
+      "hard":   { "stageId": 7019014, "chapter": 20, "mode": "Hard", "stage": "19-14 STAGE" },
+      "easy":   { "stageId": 8048043, "...": "..." }
+    },
+    "towers": { "tribe": 289, "tetra": 168, "elysion": 168, "missilis": 146, "pilgrim": 111 },
+    "corporations": { "ELYSION": 35, "MISSILIS": 24, "TETRA": 35, "PILGRIM": 13, "ABNORMAL": 4 },
+    "currencies": [ { "type": 98, "value": "23" }, ... ],
+    "overclock": {
+      "currentSubSeasonHighScore": 25,
+      "latestSeasonHighScore": 25,
+      "history": [ { "season": 10, "optionLevel": 15, "options": [901, ...] } ]
+    },
+    "profileTeam": [ { "slot": 1, "character": { "nameCode": 5065, "name": {...}, "image": "..." } } ],
+    "createdAt": 1777221536,
+    "lastActionAt": 1790633032
+  },
+  "outpost": {
+    "infraCoreLevel": 19,
+    "outpostBattleLevel": 384,
+    "synchroLevel": 248,
+    "synchroSlotsUsed": 54,
+    "tacticAcademy": { "class": 13000, "lesson": 13003 },
+    "recycleRoom": [ { "tid": 1001, "type": "Personal", "subType": "Personal", "level": 91, "exp": 0 }, ... ],
+    "memorials": [ { "category": "HandWriting", "count": 88 }, ... ]
+  },
+  "nikkes": [
+    {
+      "character": { "nameCode": 1021, "id": 220401, "name": { "ko": "...", ... }, "image": "..." },
+      "level": 1,
+      "combat": 65721,
+      "arenaCombat": 67169,
+      "grade": 2,
+      "core": 0,
+      "costume": null,
+      "skills": { "skill1": 7, "skill2": 10, "burst": 10 },
+      "attractiveLevel": 30,
+      "favoriteItem": { "id": 201701, "level": 2, "name": { "ko": "...", ... } },
+      "cube": { "id": 1000311, "level": 3, "name": { "ko": "...", ... } },
+      "arenaCube": null,
+      "equipment": {
+        "head": {
+          "tid": 3121001,
+          "name": { "ko": "ν 매터 바이저", "en": "V Matter Visor", ... },
+          "class": "Attacker",
+          "rare": "T10",
+          "icon": "https://.../icn_equipment_head_attacker_t9_3.webp",
+          "tier": 10,
+          "level": 5,
+          "corporation": null,
+          "options": [
+            {
+              "id": 7000514,
+              "name": { "ko": "[우월코드 대미지 증가]", ... },
+              "rank": 4,
+              "value": { "type": "StatAtk", "value": 10.52, "unit": "%" }
+            }
+          ]
+        },
+        "torso": { "...": "..." },
+        "arm":   { "...": "..." },
+        "leg":   { "...": "..." }
+      }
+    }
+  ]
+}
+```
+
+| 필드 | 설명 |
+|------|------|
+| `profile.icon` | 대표 아이콘 — `iconId`가 캐릭터/코스튬으로 해석되면 이름·이미지 포함 |
+| `profile.campaign.*` | 캠페인 진행도 — `stageId`를 stage_list로 해석해 `chapter`/`mode`/`stage`("40-35 STAGE" 등) 제공 |
+| `nikkes[]` | 보유 니케 — 전투력 내림차순. 미장착 `cube`/`favoriteItem`/`costume`/`equipment` 부위는 `null` |
+| `nikkes[].costume` | 착용 코스튬 — `id`, `skinIndex`, 해당 코스튬 아이콘 포함 캐릭터 정보 |
+| `nikkes[].equipment.*` | 부위별 장비 — `name`(4개 언어)·`class`·`rare`·`icon`은 `ItemEquipTable`에서 해석 |
+| `nikkes[].equipment.*.corporation` | 기업 장비 여부 (`ELYSION` 등, 비기업 장비는 `null`) |
+| `nikkes[].equipment.*.options[]` | 장비 옵션 — `id`, 옵션 종류 `name`(4개 언어), `rank`(같은 종류 내 등급), `value`({type, value, unit}) — 실제 수치는 업스트림 `state_effects`에서 해석 |
+
+**참고**
+
+- 대상이 BlablaLink에서 프로필 공유 링크를 만들 수 있는 상태여야 조회됩니다.
+- 대상의 공개 설정에 따라 일부 섹션이 비어 있거나 거부될 수 있습니다.
+- 니케 장비 `tid`/옵션 `id`는 내부 아이템 코드입니다 (원본 테이블은 `/api/tables/ItemEquipTable_ko.json` 참고).
+
+**에러**
+
+| 상황 | 상태 |
+|------|------|
+| `openid` 형식 오류 | 400 `{"error": "invalid openid"}` |
+| 서버 조회 계정 미설정 | 503 `{"error": "blabla credentials not configured"}` |
+| 업스트림 실패 (토큰 만료, 권한 없음 등) | 502 `{"error": "...", "code": ...}` |
 
 ## GET /api/cdn
 

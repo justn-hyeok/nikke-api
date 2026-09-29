@@ -449,7 +449,11 @@ GET /api/user?url=https://www.blablalink.com/user?openid=MjkwODAt...
     "teamCombat": 355847,
     "nikkeCount": 111,
     "costumeCount": 6,
-    "campaign": { "normal": 6040043, "hard": 7019014, "easy": 8048043 },
+    "campaign": {
+      "normal": { "stageId": 6040043, "chapter": 41, "mode": "Normal", "stage": "40-35 STAGE" },
+      "hard":   { "stageId": 7019014, "chapter": 20, "mode": "Hard", "stage": "19-14 STAGE" },
+      "easy":   { "stageId": 8048043, "...": "..." }
+    },
     "towers": { "tribe": 289, "tetra": 168, "elysion": 168, "missilis": 146, "pilgrim": 111 },
     "corporations": { "ELYSION": 35, "MISSILIS": 24, "TETRA": 35, "PILGRIM": 13, "ABNORMAL": 4 },
     "currencies": [ { "type": 98, "value": "23" }, ... ],
@@ -468,7 +472,7 @@ GET /api/user?url=https://www.blablalink.com/user?openid=MjkwODAt...
     "synchroLevel": 248,
     "synchroSlotsUsed": 54,
     "tacticAcademy": { "class": 13000, "lesson": 13003 },
-    "recycleRoom": [ { "tid": 1001, "level": 91, "exp": 0 }, ... ],
+    "recycleRoom": [ { "tid": 1001, "type": "Personal", "subType": "Personal", "level": 91, "exp": 0 }, ... ],
     "memorials": [ { "category": "HandWriting", "count": 88 }, ... ]
   },
   "nikkes": [
@@ -479,30 +483,47 @@ GET /api/user?url=https://www.blablalink.com/user?openid=MjkwODAt...
       "arenaCombat": 67169,
       "grade": 2,
       "core": 0,
-      "costumeTid": null,
+      "costume": null,
       "skills": { "skill1": 7, "skill2": 10, "burst": 10 },
       "attractiveLevel": 30,
       "favoriteItem": { "id": 201701, "level": 2, "name": { "ko": "...", ... } },
       "cube": { "id": 1000311, "level": 3, "name": { "ko": "...", ... } },
       "arenaCube": null,
       "equipment": {
-        "head":  { "tid": 3121001, "tier": 10, "level": 5, "corporation": null, "options": [7000511, 7001110] },
+        "head": {
+          "tid": 3121001,
+          "name": { "ko": "ν 매터 바이저", "en": "V Matter Visor", ... },
+          "class": "Attacker",
+          "rare": "T10",
+          "icon": "https://.../icn_equipment_head_attacker_t9_3.webp",
+          "tier": 10,
+          "level": 5,
+          "corporation": null,
+          "options": [
+            { "id": 7000511, "name": { "ko": "[우월코드 대미지 증가]", ... }, "rank": 1 }
+          ]
+        },
         "torso": { "...": "..." },
         "arm":   { "...": "..." },
         "leg":   { "...": "..." }
       }
     }
-  ]
+  ],
+  "stateEffects": [ ... ]
 }
 ```
 
 | 필드 | 설명 |
 |------|------|
 | `summary` | BlablaLink 계정 요약 (커뮤니티 쪽 정보 — 게임 닉네임과 다를 수 있음) |
-| `profile.icon` | 대표 아이콘 니케 — `nameCode`가 캐릭터로 해석되면 이름/이미지 포함, 아니면 `nameCode`만 |
-| `profile.campaign.*` | 캠페인 진행도 — 챕터·스테이지가 인코딩된 내부 코드 값 |
-| `nikkes[]` | 보유 니케 — 전투력 내림차순. `cube`/`favoriteItem`/`equipment`의 `name`은 해당 항목 없으면 `null` |
+| `profile.icon` | 대표 아이콘 — `iconId`가 캐릭터/코스튬으로 해석되면 이름·이미지 포함 |
+| `profile.campaign.*` | 캠페인 진행도 — `stageId`를 stage_list로 해석해 `chapter`/`mode`/`stage`("40-35 STAGE" 등) 제공 |
+| `nikkes[]` | 보유 니케 — 전투력 내림차순. 미장착 `cube`/`favoriteItem`/`costume`/`equipment` 부위는 `null` |
+| `nikkes[].costume` | 착용 코스튬 — `id`, `skinIndex`, 해당 코스튬 아이콘 포함 캐릭터 정보 |
+| `nikkes[].equipment.*` | 부위별 장비 — `name`(4개 언어)·`class`·`rare`·`icon`은 `ItemEquipTable`에서 해석 |
 | `nikkes[].equipment.*.corporation` | 기업 장비 여부 (`ELYSION` 등, 비기업 장비는 `null`) |
+| `nikkes[].equipment.*.options[]` | 장비 옵션 — `id`, 옵션 종류 `name`(4개 언어), `rank`(같은 종류 내 등급) |
+| `stateEffects` | 옵션 id → 실제 수치가 담긴 업스트림 원본 배열 (`options[].id`와 조인) |
 
 **참고**
 

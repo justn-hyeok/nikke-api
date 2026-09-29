@@ -441,7 +441,6 @@ GET /api/user?url=https://www.blablalink.com/user?openid=MjkwODAt...
 {
   "intlOpenId": "6955112070733725602",
   "areaId": 83,
-  "summary": { "role_name": "...", "player_level": 61, "team_combat": 24728, "...": "블라블라링크 계정 요약 (원본)" },
   "profile": {
     "nickname": "둔R",
     "level": 333,
@@ -519,7 +518,6 @@ GET /api/user?url=https://www.blablalink.com/user?openid=MjkwODAt...
 
 | 필드 | 설명 |
 |------|------|
-| `summary` | BlablaLink 계정 요약 (커뮤니티 쪽 정보 — 게임 닉네임과 다를 수 있음) |
 | `profile.icon` | 대표 아이콘 — `iconId`가 캐릭터/코스튬으로 해석되면 이름·이미지 포함 |
 | `profile.campaign.*` | 캠페인 진행도 — `stageId`를 stage_list로 해석해 `chapter`/`mode`/`stage`("40-35 STAGE" 등) 제공 |
 | `nikkes[]` | 보유 니케 — 전투력 내림차순. 미장착 `cube`/`favoriteItem`/`costume`/`equipment` 부위는 `null` |

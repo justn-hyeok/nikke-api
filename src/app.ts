@@ -485,7 +485,6 @@ app.get("/api/user", async (c) => {
     return c.json({
       intlOpenId: target.intlOpenId,
       areaId,
-      summary: { ...(info.data as object), iconCharacter: avatarRef((info.data as any)?.icon) },
       profile: {
         nickname: bi.nickname ?? bi.role_name,
         level: bi.lv,

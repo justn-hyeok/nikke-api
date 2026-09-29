@@ -46,6 +46,20 @@ let nameCodeMap: Record<string, number> | null = null;
 let avatarMap: Record<string, { resourceId: number; costumeIndex: number }> | null = null;
 let favNameMap: Map<number, Record<string, string>> | null = null;
 let cubeNameMap: Map<number, { name: Record<string, string>; rare?: string }> | null = null;
+let equipItemMap: Record<string, {
+  name: Record<string, string>; class?: string; rare?: string; slot?: string; icon?: string;
+}> | null = null;
+let equipOptionMap: Record<string, {
+  groupId: number; rank: number; name: Record<string, string>;
+}> | null = null;
+let stageMap: Map<number, { chapter: number; mode: string; name: string }> | null = null;
+let recycleMap: Map<number, { type?: string; subType?: string }> | null = null;
+
+// costume id → character + costume (built from the character list)
+const costumeOwner = new Map<number, { nikke: Nikke; costume: Nikke["costumes"][number] }>();
+for (const n of characters) {
+  for (const co of n.costumes) costumeOwner.set(co.id, { nikke: n, costume: co });
+}
 
 async function loadDistJson<T>(file: string, fallback: T): Promise<T> {
   try {
@@ -81,6 +95,44 @@ async function loadCubeNames() {
     } catch { /* empty */ }
   }
   return cubeNameMap;
+}
+
+async function loadEquipMaps() {
+  equipItemMap ??= await loadDistJson("equip_item_map.json", {});
+  equipOptionMap ??= await loadDistJson("equip_option_map.json", {});
+  return { equipItemMap, equipOptionMap };
+}
+
+async function loadStageMap() {
+  if (!stageMap) {
+    stageMap = new Map();
+    try {
+      const list: { id: number; chapter_id: number; chapter_mod: string; name_localkey?: { name?: string } }[] =
+        JSON.parse(await readFile(path.join(DIST, "tables", "stage_list.json"), "utf8"));
+      for (const s of list) {
+        stageMap.set(s.id, {
+          chapter: s.chapter_id,
+          mode: s.chapter_mod,
+          name: s.name_localkey?.name ?? "",
+        });
+      }
+    } catch { /* empty */ }
+  }
+  return stageMap;
+}
+
+async function loadRecycleMap() {
+  if (!recycleMap) {
+    recycleMap = new Map();
+    try {
+      const tbl: { records?: { id: number; recycle_type?: string; recycle_sub_type?: string }[] } =
+        JSON.parse(await readFile(path.join(DIST, "tables", "RecycleResearchStatTable.json"), "utf8"));
+      for (const r of tbl.records ?? []) {
+        recycleMap.set(r.id, { type: r.recycle_type, subType: r.recycle_sub_type });
+      }
+    } catch { /* empty */ }
+  }
+  return recycleMap;
 }
 
 const CORP_NAMES: Record<number, string> = {
@@ -299,11 +351,15 @@ app.get("/api/user", async (c) => {
       ? await gameApi("Game", "GetUserCharacterDetails", { ...body, name_codes: codes })
       : { code: -1, data: null };
 
-    const [ncMap, favNames, cubeNames] = await Promise.all([
-      loadNameCodeMap(),
-      loadFavNames(),
-      loadCubeNames(),
-    ]);
+    const [ncMap, favNames, cubeNames, { equipItemMap, equipOptionMap }, stages, recycles] =
+      await Promise.all([
+        loadNameCodeMap(),
+        loadFavNames(),
+        loadCubeNames(),
+        loadEquipMaps(),
+        loadStageMap(),
+        loadRecycleMap(),
+      ]);
     const charInfo = (n: Nikke, image?: string) => ({
       id: n.id,
       resourceId: n.resourceId,
@@ -334,16 +390,41 @@ app.get("/api/user", async (c) => {
       !tid ? null : { id: tid, level: lv ?? 0, name: cubeNames.get(tid)?.name ?? null };
     const favRef = (tid?: number, lv?: number) =>
       !tid ? null : { id: tid, level: lv ?? 0, name: favNames.get(tid) ?? null };
+    const costumeRef = (tid?: number | null) => {
+      if (!tid) return null;
+      const hit = costumeOwner.get(tid);
+      if (!hit) return { id: tid };
+      return {
+        id: tid,
+        skinIndex: hit.costume.skinIndex,
+        character: charInfo(hit.nikke, hit.costume.images.icon),
+      };
+    };
+    const optionRef = (oid?: number) => {
+      if (!oid) return null;
+      const o = equipOptionMap?.[String(oid)];
+      return o ? { id: oid, name: o.name, rank: o.rank } : { id: oid };
+    };
     const equipRef = (d: Record<string, any>, slot: string) => {
       const tid = d[`${slot}_equip_tid`];
       if (!tid) return null;
+      const item = equipItemMap?.[String(tid)];
       return {
         tid,
+        name: item?.name ?? null,
+        class: item?.class ?? null,
+        rare: item?.rare ?? null,
+        icon: item?.icon ?? null,
         tier: d[`${slot}_equip_tier`] ?? 0,
         level: d[`${slot}_equip_lv`] ?? 0,
         corporation: CORP_NAMES[d[`${slot}_equip_corporation_type`]] ?? null,
-        options: [1, 2, 3].map((i) => d[`${slot}_equip_option${i}_id`]).filter(Boolean),
+        options: [1, 2, 3].map((i) => optionRef(d[`${slot}_equip_option${i}_id`])).filter(Boolean),
       };
+    };
+    const stageRef = (stageId?: number) => {
+      if (!stageId) return null;
+      const s = stages.get(stageId);
+      return s ? { stageId, chapter: s.chapter, mode: s.mode, stage: s.name } : { stageId };
     };
 
     const bi = (basic.data as any)?.basic_info ?? {};
@@ -362,7 +443,7 @@ app.get("/api/user", async (c) => {
         arenaCombat: d.arena_combat ?? 0,
         grade: ch.grade ?? d.grade ?? 0,
         core: ch.core ?? d.core ?? 0,
-        costumeTid: d.costume_tid || ch.costume_id || null,
+        costume: costumeRef(d.costume_tid || ch.costume_id),
         skills: { skill1: d.skill1_lv ?? 0, skill2: d.skill2_lv ?? 0, burst: d.ulti_skill_lv ?? 0 },
         attractiveLevel: d.attractive_lv ?? 0,
         favoriteItem: favRef(d.favorite_item_tid, d.favorite_item_lv),
@@ -398,9 +479,9 @@ app.get("/api/user", async (c) => {
         nikkeCount: bi.character_count,
         costumeCount: bi.character_costume_count,
         campaign: {
-          normal: bi.progress_normal_campaign,
-          hard: bi.progress_hard_campaign,
-          easy: bi.progress_easy_campaign,
+          normal: stageRef(bi.progress_normal_campaign),
+          hard: stageRef(bi.progress_hard_campaign),
+          easy: stageRef(bi.progress_easy_campaign),
         },
         towers: {
           tribe: bi.progress_tribe_tower,
@@ -436,6 +517,8 @@ app.get("/api/user", async (c) => {
         tacticAcademy: { class: op.tactic_academy_class, lesson: op.tactic_academy_lesson },
         recycleRoom: (op.recycle_room_researches ?? []).map((r: any) => ({
           tid: r.tid,
+          type: recycles.get(r.tid)?.type ?? null,
+          subType: recycles.get(r.tid)?.subType ?? null,
           level: r.lv,
           exp: r.exp,
         })),
@@ -443,6 +526,7 @@ app.get("/api/user", async (c) => {
         isHidden: !!op.is_hide,
       },
       nikkes,
+      stateEffects: (details.data as any)?.state_effects ?? [],
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

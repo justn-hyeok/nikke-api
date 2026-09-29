@@ -157,6 +157,45 @@ async function main() {
   for (const a of avatars) avatarMap[a.id] = { resourceId: a.resource_id, costumeIndex: a.costume_index };
   await writeFile(path.join(OUT, "avatar_map.json"), JSON.stringify(avatarMap));
 
+  // --- equipment item map (tid → localized name/icon), for profile lookups ---
+  const equipTables = await Promise.all(
+    LOCALES.map((l) => readJson<any>(`ItemEquipTable_${l}.json`)),
+  );
+  const equipItemMap: Record<number, {
+    name: Partial<Record<Locale, string>>;
+    class?: string; rare?: string; slot?: string; icon?: string;
+  }> = {};
+  const slotOf = (rid?: string) =>
+    rid?.match(/icn_equipment_(head|torso|arm|leg)_/)?.[1];
+  for (const [li, tbl] of equipTables.entries()) {
+    for (const r of tbl?.records ?? []) {
+      const e = (equipItemMap[r.id] ??= { name: {} });
+      if (r.name_localkey) e.name[LOCALES[li]] = r.name_localkey;
+      e.class ??= r.class;
+      e.rare ??= r.item_rare;
+      e.slot ??= slotOf(r.resource_id);
+      e.icon ??= r.resource_id ? icon("equip", r.resource_id) : undefined;
+    }
+  }
+  await writeFile(path.join(OUT, "equip_item_map.json"), JSON.stringify(equipItemMap));
+
+  // --- equipment option map (option id → group name + rank) ---
+  const optTables = await Promise.all(
+    LOCALES.map((l) => readJson<any>(`equip_option_table_${l}.json`)),
+  );
+  const equipOptionMap: Record<number, {
+    groupId: number; rank: number; name: Partial<Record<Locale, string>>;
+  }> = {};
+  for (const [li, tbl] of optTables.entries()) {
+    for (const g of tbl ?? []) {
+      (g.state_effect_id_list ?? []).forEach((oid: number, i: number) => {
+        const e = (equipOptionMap[oid] ??= { groupId: g.id, rank: i + 1, name: {} });
+        if (g.description_localkey) e.name[LOCALES[li]] = g.description_localkey;
+      });
+    }
+  }
+  await writeFile(path.join(OUT, "equip_option_map.json"), JSON.stringify(equipOptionMap));
+
   // --- copy remaining tables verbatim ---
   const rawFiles = await readdir(RAW);
   const skip = (f: string) =>

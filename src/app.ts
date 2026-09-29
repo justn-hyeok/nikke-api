@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { cdnUrl } from "./cdn.js";
+import { decodeOpenid, gameApi, playerInfo } from "./blabla.js";
 import type { Nikke } from "./types.js";
 
 const DIST = path.resolve("data/dist");
@@ -71,6 +72,8 @@ app.get("/", (c) =>
       "GET /api/tables": "list raw table files",
       "GET /api/tables/:file": "raw synced table JSON",
       "GET /api/cdn?path=": "resolve a Blablalink CDN resource path to its URL",
+      "GET /api/user?openid=":
+        "shared-profile lookup (blablalink user link or raw openid)",
     },
   }),
 );
@@ -191,6 +194,44 @@ app.get("/api/tables/:file", async (c) => {
     return c.body(body, 200, { "Content-Type": "application/json" });
   } catch {
     return c.json({ error: "not found" }, 404);
+  }
+});
+
+app.get("/api/user", async (c) => {
+  const q = c.req.query("openid") ?? c.req.query("url") ?? "";
+  const target = decodeOpenid(q);
+  if (!target) return c.json({ error: "invalid openid" }, 400);
+  try {
+    const info = await playerInfo<{ area_id?: string }>(target.intlOpenId);
+    if (info.code !== 0 || !info.data)
+      return c.json({ error: info.msg ?? "lookup failed", code: info.code }, 502);
+    const areaId = Number(info.data.area_id ?? 0);
+    const body = { intl_open_id: target.intlOpenId, nikke_area_id: areaId };
+    const [basic, outpost, chars] = await Promise.all([
+      gameApi("Game", "GetUserProfileBasicInfo", body),
+      gameApi("Game", "GetUserProfileOutpostInfo", body),
+      gameApi("Game", "GetUserCharacters", body),
+    ]);
+    const codes =
+      ((chars.data as { characters?: { name_code?: number }[] } | null)?.characters ?? [])
+        .map((x) => x.name_code)
+        .filter((x): x is number => !!x);
+    const details = codes.length
+      ? await gameApi("Game", "GetUserCharacterDetails", { ...body, name_codes: codes })
+      : { code: -1, data: null };
+    return c.json({
+      intlOpenId: target.intlOpenId,
+      areaId,
+      summary: info.data,
+      profile: basic.data,
+      outpost: outpost.data,
+      characters: chars.data,
+      characterDetails: details.data,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const status = msg.includes("not configured") ? 503 : 502;
+    return c.json({ error: msg }, status);
   }
 });
 

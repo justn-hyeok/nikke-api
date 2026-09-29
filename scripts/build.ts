@@ -124,6 +124,13 @@ async function main() {
   }
 
   const characters = [...byId.values()].sort((a, b) => a.id - b.id);
+  const byRes = new Map(characters.map((c) => [c.resourceId, c]));
+  const charRef = (resourceId?: number) => {
+    const n = resourceId != null ? byRes.get(resourceId) : undefined;
+    return n
+      ? { id: n.id, resourceId: n.resourceId, name: n.name, rarity: n.rarity, image: n.images.icon }
+      : null;
+  };
   await writeFile(
     path.join(OUT, "characters.json"),
     JSON.stringify({ count: characters.length, syncedAt: new Date().toISOString(), characters }),
@@ -137,6 +144,18 @@ async function main() {
   for (const n of characters) {
     const detail = await buildDetail(n.resourceId);
     if (detail) {
+      // raw teammate entries -> character refs
+      if (Array.isArray(detail.teammateList)) {
+        detail.teammateList = (detail.teammateList as any[]).map((t) => ({
+          nameCode: t.name_code,
+          ...(charRef(t.resource_id) ?? {
+            id: t.id,
+            resourceId: t.resource_id,
+            name: { ko: t.name_localkey },
+            rarity: t.original_rare,
+          }),
+        }));
+      }
       await writeFile(path.join(DETAILS, `${n.id}.json`), JSON.stringify(detail));
       detailCount++;
     }
@@ -262,6 +281,10 @@ async function main() {
     const r = rid ?? (code ? speakerResources.get(code) : undefined);
     return r ? images(r, 0).icon : undefined;
   };
+  const speakerNikke = (code: string | undefined, rid: number | undefined) => {
+    const r = rid ?? (code ? speakerResources.get(code) : undefined);
+    return charRef(r) ?? undefined;
+  };
   // per-chapter voice maps: d_main_NN -> set of speech ids that have voice audio
   const voiceMaps = new Map<string, Set<string>>();
   for (const f of rawFiles.filter((f) => f.startsWith("voice_map_"))) {
@@ -299,6 +322,7 @@ async function main() {
       text: r.quest_name,
       window: r.value?.speech_window,
       speakerIcon: speakerIcon(r.value?.speaker, undefined),
+      speakerNikke: speakerNikke(r.value?.speaker, undefined),
       voice: voiceUrl(gid, r.value?.id),
     }));
     await writeFile(
@@ -323,6 +347,7 @@ async function main() {
       background: r.set_background,
       bgm: r.play_bgm,
       speakerIcon: speakerIcon(r.speaker, r.speaker_detail?.resource_id),
+      speakerNikke: speakerNikke(r.speaker, r.speaker_detail?.resource_id),
       voice: voiceUrl(gid, r.id),
     }));
     await writeFile(
@@ -437,6 +462,7 @@ async function main() {
     const item = {
       id,
       nameCode: first.name_code,
+      character: charRef(nameCodeMap[first.name_code]) ?? undefined,
       rare: first.favorite_rare,
       type: first.favorite_type,
       weaponType: first.weapon_type,

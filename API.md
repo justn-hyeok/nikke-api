@@ -149,7 +149,10 @@ GET /api/nikkes?element=Electronic&rarity=SSR
       "defence": [...],
       "hp": [...]
     },
-    "teammateList": [ ... ],
+    "teammateList": [
+      { "nameCode": 5071, "id": 201401, "resourceId": 14,
+        "name": { "ko": "네온 : 블루 오션", ... }, "rarity": "SSR", "image": "https://..." }
+    ],
     "attractiveScenarios": [ ... ],
     "voices": [
       {
@@ -310,6 +313,7 @@ GET /api/scenes/d_main_01_01_s
 | `lines[].text` | 대사 텍스트 |
 | `lines[].window` | 말풍선 타입 (`Speech`, `Choice`, `Narration` 등) |
 | `lines[].speakerIcon` | 화자 아이콘 이미지 URL (화자가 캐릭터로 매핑될 때 존재, NPC 포함) |
+| `lines[].speakerNikke` | 화자가 플레이어블 니케일 때 `{id, resourceId, name(4개 언어), rarity, image}` — NPC·시스템 화자는 필드 없음 |
 | `lines[].voice` | 해당 대사의 한국어 보이스 mp3 URL. 보이스가 없는 씬에서는 `null` |
 | `lines[].background` / `lines[].bgm` | 배경·BGM 리소스 코드 (호감도 씬에만 존재) |
 
@@ -345,6 +349,8 @@ GET /api/scenes/d_main_01_01_s
 {
   "id": 200101,
   "nameCode": 5020,
+  "character": { "id": 207201, "resourceId": 72,
+    "name": { "ko": "디젤", ... }, "rarity": "SSR", "image": "https://..." },
   "rare": "SSR",
   "weaponType": "MG",
   "maxLevel": 2,

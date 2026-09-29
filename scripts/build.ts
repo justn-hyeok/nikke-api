@@ -183,15 +183,31 @@ async function main() {
   const optTables = await Promise.all(
     LOCALES.map((l) => readJson<any>(`equip_option_table_${l}.json`)),
   );
+  // one option kind spans 3 group rows (15 ids); rank is 1-15 across the
+  // whole state_effect_group_id family, not 1-5 within a single group
+  const optFamilies = new Map<number, number[]>();
+  for (const g of optTables.find(Boolean) ?? []) {
+    const fam = g.state_effect_group_id ?? g.id;
+    const arr = optFamilies.get(fam) ?? [];
+    for (const oid of g.state_effect_id_list ?? []) arr.push(oid);
+    optFamilies.set(fam, arr);
+  }
+  const optRank = new Map<number, { groupId: number; rank: number }>();
+  for (const [fam, ids] of optFamilies) {
+    ids.forEach((oid, i) => optRank.set(oid, { groupId: fam, rank: i + 1 }));
+  }
   const equipOptionMap: Record<number, {
     groupId: number; rank: number; name: Partial<Record<Locale, string>>;
   }> = {};
   for (const [li, tbl] of optTables.entries()) {
     for (const g of tbl ?? []) {
-      (g.state_effect_id_list ?? []).forEach((oid: number, i: number) => {
-        const e = (equipOptionMap[oid] ??= { groupId: g.id, rank: i + 1, name: {} });
+      for (const oid of g.state_effect_id_list ?? []) {
+        const r = optRank.get(oid);
+        const e = (equipOptionMap[oid] ??= {
+          groupId: r?.groupId ?? g.id, rank: r?.rank ?? 0, name: {},
+        });
         if (g.description_localkey) e.name[LOCALES[li]] = g.description_localkey;
-      });
+      }
     }
   }
   await writeFile(path.join(OUT, "equip_option_map.json"), JSON.stringify(equipOptionMap));

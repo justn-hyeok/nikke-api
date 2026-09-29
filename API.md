@@ -316,7 +316,7 @@ GET /api/scenes/d_main_01_01_s
 
 ## GET /api/favorites
 
-소장품(페이버릿 아이템) 목록을 반환합니다 — 33종 (R/SR/SSR).
+소장품과 애장품 목록을 반환합니다 — 33종 (R/SR/SSR).
 
 ### 쿼리 파라미터
 

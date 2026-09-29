@@ -500,7 +500,12 @@ GET /api/user?url=https://www.blablalink.com/user?openid=MjkwODAt...
           "level": 5,
           "corporation": null,
           "options": [
-            { "id": 7000511, "name": { "ko": "[우월코드 대미지 증가]", ... }, "rank": 1 }
+            {
+              "id": 7000514,
+              "name": { "ko": "[우월코드 대미지 증가]", ... },
+              "rank": 4,
+              "value": { "type": "StatAtk", "value": 10.52, "unit": "%" }
+            }
           ]
         },
         "torso": { "...": "..." },
@@ -508,8 +513,7 @@ GET /api/user?url=https://www.blablalink.com/user?openid=MjkwODAt...
         "leg":   { "...": "..." }
       }
     }
-  ],
-  "stateEffects": [ ... ]
+  ]
 }
 ```
 
@@ -522,8 +526,7 @@ GET /api/user?url=https://www.blablalink.com/user?openid=MjkwODAt...
 | `nikkes[].costume` | 착용 코스튬 — `id`, `skinIndex`, 해당 코스튬 아이콘 포함 캐릭터 정보 |
 | `nikkes[].equipment.*` | 부위별 장비 — `name`(4개 언어)·`class`·`rare`·`icon`은 `ItemEquipTable`에서 해석 |
 | `nikkes[].equipment.*.corporation` | 기업 장비 여부 (`ELYSION` 등, 비기업 장비는 `null`) |
-| `nikkes[].equipment.*.options[]` | 장비 옵션 — `id`, 옵션 종류 `name`(4개 언어), `rank`(같은 종류 내 등급) |
-| `stateEffects` | 옵션 id → 실제 수치가 담긴 업스트림 원본 배열 (`options[].id`와 조인) |
+| `nikkes[].equipment.*.options[]` | 장비 옵션 — `id`, 옵션 종류 `name`(4개 언어), `rank`(같은 종류 내 등급), `value`({type, value, unit}) — 실제 수치는 업스트림 `state_effects`에서 해석 |
 
 **참고**
 

@@ -400,10 +400,28 @@ app.get("/api/user", async (c) => {
         character: charInfo(hit.nikke, hit.costume.images.icon),
       };
     };
+    // state_effects entries carry the resolved numeric value per option id
+    const effectById = new Map<string, any>(
+      (((details.data as any)?.state_effects ?? []) as any[]).map((e: any) => [String(e.id), e]),
+    );
     const optionRef = (oid?: number) => {
       if (!oid) return null;
       const o = equipOptionMap?.[String(oid)];
-      return o ? { id: oid, name: o.name, rank: o.rank } : { id: oid };
+      const fd = effectById.get(String(oid))?.function_details?.[0];
+      const value =
+        fd?.function_value != null
+          ? {
+              type: fd.function_type ?? null,
+              value:
+                fd.function_value_type === "Percent"
+                  ? fd.function_value / 100
+                  : fd.function_value,
+              unit: fd.function_value_type === "Percent" ? "%" : null,
+            }
+          : null;
+      return o
+        ? { id: oid, name: o.name, rank: o.rank, value }
+        : { id: oid, value };
     };
     const equipRef = (d: Record<string, any>, slot: string) => {
       const tid = d[`${slot}_equip_tid`];
@@ -526,7 +544,6 @@ app.get("/api/user", async (c) => {
         isHidden: !!op.is_hide,
       },
       nikkes,
-      stateEffects: (details.data as any)?.state_effects ?? [],
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

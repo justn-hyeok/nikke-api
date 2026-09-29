@@ -159,6 +159,30 @@ async function syncFavorites(): Promise<number> {
   return done;
 }
 
+// harmony cubes — no index file exists, so probe the known tid range
+async function syncCubes(): Promise<number> {
+  const tids: number[] = [];
+  for (let tid = 1000300; tid <= 1000399; tid++) {
+    const res = await fetch(cdnUrl(`equip/ko/cube_${tid}.json`), { method: "HEAD" });
+    if (res.ok) tids.push(tid);
+  }
+  const queue: [string, string][] = [];
+  for (const tid of tids) {
+    for (const l of LOCALES) {
+      queue.push([`equip/${l.toLowerCase()}/cube_${tid}.json`, `cube_${tid}_${l}.json`]);
+    }
+  }
+  let done = 0;
+  const CONCURRENCY = 8;
+  for (let i = 0; i < queue.length; i += CONCURRENCY) {
+    const results = await Promise.all(
+      queue.slice(i, i + CONCURRENCY).map(([p, out]) => download(p, out)),
+    );
+    done += results.filter(Boolean).length;
+  }
+  return done;
+}
+
 async function download(pathTemplate: string, outName: string): Promise<boolean> {
   const url = cdnUrl(pathTemplate);
   try {
@@ -202,6 +226,9 @@ async function main() {
 
   const fv = await syncFavorites();
   console.log(`${fv} favorite item files synced`);
+
+  const cb = await syncCubes();
+  console.log(`${cb} harmony cube files synced`);
 }
 
 main();

@@ -143,6 +143,14 @@ async function main() {
   }
   console.log(`details/: ${detailCount} character detail files`);
 
+  // --- name_code → character map (for shared-profile lookups) ---
+  const idMap: { name_code: number; id: number; resource_id: number }[] = JSON.parse(
+    await readFile(path.join(RAW, "character_id_map.json"), "utf8"),
+  );
+  const nameCodeMap: Record<number, { id: number; resourceId: number }> = {};
+  for (const e of idMap) nameCodeMap[e.name_code] = { id: e.id, resourceId: e.resource_id };
+  await writeFile(path.join(OUT, "name_code_map.json"), JSON.stringify(nameCodeMap));
+
   // --- copy remaining tables verbatim ---
   const rawFiles = await readdir(RAW);
   const skip = (f: string) =>
@@ -151,7 +159,8 @@ async function main() {
     /^scene_(d_|event_)/.test(f) ||
     f.startsWith("attract_") ||
     f.startsWith("voice_map_") ||
-    /^favorite_\d+_/.test(f);
+    /^favorite_\d+_/.test(f) ||
+    /^cube_\d+_/.test(f);
   let copied = 0;
   for (const f of rawFiles) {
     if (skip(f)) continue;
@@ -395,6 +404,106 @@ async function main() {
   favIndex.sort((a, b) => a.id - b.id);
   await writeFile(path.join(OUT, "favorites.json"), JSON.stringify(favIndex));
   console.log(`favorites/: ${favIndex.length} items`);
+
+  // --- normalize harmony cube files ---
+  const CUBES = path.join(OUT, "cubes");
+  await mkdir(CUBES, { recursive: true });
+  const cubeIds = [
+    ...new Set(
+      rawFiles
+        .filter((f) => /^cube_\d+_ko\.json$/.test(f))
+        .map((f) => f.replace(/^cube_(\d+)_ko\.json$/, "$1")),
+    ),
+  ];
+  const cubeIndex: { id: number; name: Partial<Record<Locale, string>>; rare?: string }[] = [];
+  for (const idStr of cubeIds) {
+    const files = await Promise.all(LOCALES.map((l) => readJson<any>(`cube_${idStr}_${l}.json`)));
+    const first = files.find(Boolean);
+    if (!first) continue;
+    const id = Number(idStr);
+    const name: Partial<Record<Locale, string>> = {};
+    const description: Partial<Record<Locale, string>> = {};
+    const location: Partial<Record<Locale, string>> = {};
+    files.forEach((r, i) => {
+      if (!r) return;
+      const l = LOCALES[i];
+      if (r.name_localkey) name[l] = r.name_localkey;
+      if (r.description_localkey) description[l] = r.description_localkey;
+      if (r.location_localkey) location[l] = r.location_localkey;
+    });
+    // group per-level skill entries by group_id, merge locales
+    const skillGroups = new Map<number, any[]>();
+    for (const r of files) {
+      for (const e of (r?.harmonycube_skill_group ?? []).filter(Boolean)) {
+        const arr = skillGroups.get(e.group_id) ?? [];
+        if (!arr.some((x) => x.skill_level === e.skill_level)) arr.push(e);
+        skillGroups.set(e.group_id, arr);
+      }
+    }
+    const skills = [...skillGroups.entries()].map(([groupId, entries]) => {
+      const sName: Partial<Record<Locale, string>> = {};
+      const descTemplate: Partial<Record<Locale, string>> = {};
+      const descs: Partial<Record<Locale, string>> = {};
+      let values: (string[] | null)[] = [];
+      entries.sort((a, b) => a.skill_level - b.skill_level);
+      for (const e of entries) {
+        const v = (e.description_value_list ?? []).map((x: any) => x.description_value ?? null);
+        if (v.length > values.length) values = v;
+      }
+      files.forEach((r, i) => {
+        const l = LOCALES[i];
+        const top = (r?.harmonycube_skill_group ?? [])
+          .filter((e: any) => e && e.group_id === groupId)
+          .sort((a: any, b: any) => b.skill_level - a.skill_level)[0];
+        if (!top) return;
+        if (top.name_localkey) sName[l] = top.name_localkey;
+        if (top.description_localkey) {
+          descTemplate[l] = top.description_localkey;
+          const v = (top.description_value_list ?? []).map((x: any) => x.description_value ?? null);
+          const maxLv = Math.max(Math.max(...v.map((x: any) => x?.length ?? 0)) - 1, 0);
+          descs[l] = renderDescription(top.description_localkey, v, maxLv);
+        }
+      });
+      const anyEntry = entries[entries.length - 1];
+      return {
+        id: groupId,
+        maxLevel: entries.length,
+        icon: anyEntry?.icon ? skillIcon(anyEntry.icon) : undefined,
+        name: sName,
+        descriptionTemplate: descTemplate,
+        descriptions: descs,
+        values,
+      };
+    });
+    const stats = (first.atk ?? []).map((_: number, i: number) => ({
+      level: i + 1,
+      atk: first.atk[i],
+      def: first.def?.[i],
+      hp: first.hp?.[i],
+      power: first.powers?.[i],
+      skillLevels: [first.level1?.[i], first.level2?.[i], first.level3?.[i]],
+    }));
+    await writeFile(
+      path.join(CUBES, `${id}.json`),
+      JSON.stringify({
+        id,
+        name,
+        description,
+        location,
+        rare: first.item_rare,
+        class: first.class,
+        order: first.order,
+        bg: first.bg,
+        bgColor: first.bg_color,
+        stats,
+        skills,
+      }),
+    );
+    cubeIndex.push({ id, name, rare: first.item_rare });
+  }
+  cubeIndex.sort((a, b) => a.id - b.id);
+  await writeFile(path.join(OUT, "cubes.json"), JSON.stringify(cubeIndex));
+  console.log(`cubes/: ${cubeIndex.length} items`);
 }
 
 // strip <color=#...>, <word_group=NNN>..</..> etc, keep inner text

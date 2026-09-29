@@ -143,13 +143,19 @@ async function main() {
   }
   console.log(`details/: ${detailCount} character detail files`);
 
-  // --- name_code → character map (for shared-profile lookups) ---
+  // --- name_code / avatar-id → character maps (for shared-profile lookups) ---
   const idMap: { name_code: number; id: number; resource_id: number }[] = JSON.parse(
     await readFile(path.join(RAW, "character_id_map.json"), "utf8"),
   );
-  const nameCodeMap: Record<number, { id: number; resourceId: number }> = {};
-  for (const e of idMap) nameCodeMap[e.name_code] = { id: e.id, resourceId: e.resource_id };
+  const nameCodeMap: Record<number, number> = {};
+  for (const e of idMap) nameCodeMap[e.name_code] ??= e.resource_id;
   await writeFile(path.join(OUT, "name_code_map.json"), JSON.stringify(nameCodeMap));
+  const avatarMap: Record<number, { resourceId: number; costumeIndex: number }> = {};
+  const avatars: { id: number; resource_id: number; costume_index: number }[] = JSON.parse(
+    await readFile(path.join(RAW, "character_avatar_map.json"), "utf8"),
+  );
+  for (const a of avatars) avatarMap[a.id] = { resourceId: a.resource_id, costumeIndex: a.costume_index };
+  await writeFile(path.join(OUT, "avatar_map.json"), JSON.stringify(avatarMap));
 
   // --- copy remaining tables verbatim ---
   const rawFiles = await readdir(RAW);

@@ -42,18 +42,22 @@ async function withDetail(n: Nikke): Promise<unknown> {
 const norm = (s: string) => s.toLowerCase().replace(/[\s:_\-·]/g, "");
 
 // --- profile normalization helpers ---
-let nameCodeMap: Record<string, { id: number; resourceId: number }> | null = null;
+let nameCodeMap: Record<string, number> | null = null;
+let avatarMap: Record<string, { resourceId: number; costumeIndex: number }> | null = null;
 let favNameMap: Map<number, Record<string, string>> | null = null;
 let cubeNameMap: Map<number, { name: Record<string, string>; rare?: string }> | null = null;
 
-async function loadNameCodeMap() {
-  if (!nameCodeMap) {
-    try {
-      nameCodeMap = JSON.parse(await readFile(path.join(DIST, "name_code_map.json"), "utf8"));
-    } catch {
-      nameCodeMap = {};
-    }
+async function loadDistJson<T>(file: string, fallback: T): Promise<T> {
+  try {
+    return JSON.parse(await readFile(path.join(DIST, file), "utf8")) as T;
+  } catch {
+    return fallback;
   }
+}
+
+async function loadNameCodeMap() {
+  nameCodeMap ??= await loadDistJson("name_code_map.json", {});
+  avatarMap ??= await loadDistJson("avatar_map.json", {});
   return nameCodeMap;
 }
 
@@ -300,23 +304,31 @@ app.get("/api/user", async (c) => {
       loadFavNames(),
       loadCubeNames(),
     ]);
+    const charInfo = (n: Nikke, image?: string) => ({
+      id: n.id,
+      resourceId: n.resourceId,
+      name: n.name,
+      rarity: n.rarity,
+      class: n.class,
+      burst: n.burst,
+      corporation: n.corporation,
+      element: n.element,
+      image: image ?? n.images.icon,
+    });
     const charRef = (nameCode?: number | null) => {
       if (!nameCode) return null;
-      const e = ncMap?.[String(nameCode)];
-      const n = e ? byId.get(e.id) : undefined;
-      if (!n) return { nameCode };
-      return {
-        nameCode,
-        id: n.id,
-        resourceId: n.resourceId,
-        name: n.name,
-        rarity: n.rarity,
-        class: n.class,
-        burst: n.burst,
-        corporation: n.corporation,
-        element: n.element,
-        image: n.images.icon,
-      };
+      const rid = ncMap?.[String(nameCode)];
+      const n = rid != null ? byResourceId.get(rid) : undefined;
+      return n ? { nameCode, ...charInfo(n) } : { nameCode };
+    };
+    // avatar/icon ids are a different namespace (character_avatar_map: id -> resource+costume)
+    const avatarRef = (iconId?: number | null) => {
+      if (!iconId) return null;
+      const a = avatarMap?.[String(iconId)];
+      const n = a ? byResourceId.get(a.resourceId) : undefined;
+      if (!n || !a) return { nameCode: iconId };
+      const costume = a.costumeIndex > 0 ? n.costumes[a.costumeIndex - 1] : undefined;
+      return { iconId, costumeIndex: a.costumeIndex, ...charInfo(n, costume?.images.icon) };
     };
     const cubeRef = (tid?: number, lv?: number) =>
       !tid ? null : { id: tid, level: lv ?? 0, name: cubeNames.get(tid)?.name ?? null };
@@ -374,11 +386,11 @@ app.get("/api/user", async (c) => {
     return c.json({
       intlOpenId: target.intlOpenId,
       areaId,
-      summary: info.data,
+      summary: { ...(info.data as object), iconCharacter: avatarRef((info.data as any)?.icon) },
       profile: {
         nickname: bi.nickname ?? bi.role_name,
         level: bi.lv,
-        icon: charRef(bi.icon_id),
+        icon: avatarRef(bi.icon_id),
         iconIsPrism: !!bi.is_icon_prism,
         avatarFrame: bi.avatar_frame ?? 0,
         teamCombat: bi.team_combat,

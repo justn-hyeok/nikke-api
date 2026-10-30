@@ -25,7 +25,7 @@ BlablaLink(공식 위키 도구)의 CDN 데이터를 매일 동기화합니다. 
 
 ## 제공 데이터
 
-### 캐릭터 — 202종
+### 캐릭터 — 206종
 
 | 항목 | 내용 |
 |------|------|
@@ -38,7 +38,7 @@ BlablaLink(공식 위키 도구)의 CDN 데이터를 매일 동기화합니다. 
 | 스토리 정보 | 배경 스토리(4개 언어), 소속 스쿼드, 성우(CV), 호감도 씬 연결(`details.attractiveScenarios[].sceneGroupId` → `/api/scenes/:groupId`), 팀원 목록(캐릭터 이름·이미지로 해석) |
 | **보이스** | 캐릭터 대사 목록 (`details.voices`) — 로비 터치, 전투 진입·승리, 호감도 대사 등 캐릭터당 ~40여 라인. 대사별 `label`(종류)·`text`(대사) 4개 언어 + `voice` 음성 mp3 **ko/en/ja 3종**. `conditionAttractiveLevel`로 해금 조건 포함 |
 
-### 스토리 씬 — 3,079개 (한국어)
+### 스토리 씬 — 3,210개 (한국어)
 
 메인/이벤트/돌발 스토리 + 호감도(Attractive) 시나리오의 전체 대본.
 
@@ -58,7 +58,7 @@ BlablaLink(공식 위키 도구)의 CDN 데이터를 매일 동기화합니다. 
 | 레벨별 스탯 | `atk`/`def`/`hp`/`power`/`grade` + 해당 레벨의 컬렉션·소장품 스킬 레벨 |
 | 스킬 | 수집 효과 스킬(`collection`) + 돌파 슬롯별 전용 스킬(`item`) — 최대 레벨 렌더링 설명 + 원본 수치 |
 
-### 하모니 큐브 — 17종
+### 하모니 큐브 — 16종
 
 | 항목 | 내용 |
 |------|------|
@@ -89,7 +89,7 @@ GET /api/user/<blablaid>/nikke/아니스               # 부분 일치 → 매�
 
 `<blablaid>`는 BlablaLink 공유 링크의 openid 값입니다. 이름에 공백·콜론이 있으면 URL 인코딩이 필요합니다. `?blablaid=` 쿼리 형태와 구형 `?openid=`·`?url=`도 그대로 동작합니다.
 
-### 원본 테이블 — 81종
+### 원본 테이블 — 33종
 
 레벨 테이블, 스테이지/타워 목록, 장비 옵션, 아카이브 등 동기화된 게임 데이터 JSON을 가공 없이 그대로 제공.
 
@@ -148,9 +148,10 @@ GET /api/user/<blablaid>/nikke?fields=character.name,combat
 ```json
 {
   "count": 2,
+  "offset": 0,
   "characters": [
-    { "id": 220401, "name": { "ko": "라피 : 레드 후드" } },
-    { "id": 201301, "name": { "ko": "라피" } }
+    { "id": 201001, "name": { "ko": "라피" } },
+    { "id": 201601, "name": { "ko": "라피 : 레드 후드" } }
   ]
 }
 ```

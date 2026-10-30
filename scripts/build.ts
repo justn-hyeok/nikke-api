@@ -361,6 +361,24 @@ async function main() {
       ? cdnUrl(`voice/ko/${id}.mp3`)
       : null;
 
+  // scene-group provenance — same union of ko list files sync.ts scans to
+  // discover scene_detail downloads. First match wins, so scene_archive_list
+  // only labels groups exclusive to it (collab events like event_ce004).
+  const sceneSource = new Map<string, string>();
+  for (const f of [
+    "scene_list_ko.json",
+    "sudden_list_ko.json",
+    "archive_list_ko.json",
+    "scene_archive_list_ko.json",
+  ]) {
+    try {
+      const raw = await readFile(path.join(RAW, f), "utf8");
+      for (const m of raw.matchAll(/"scenario_group_id"\s*:\s*"([^"]+)"/g)) {
+        if (!sceneSource.has(m[1])) sceneSource.set(m[1], f.replace(/_ko\.json$/, ""));
+      }
+    } catch { /* list file missing */ }
+  }
+
   const sceneIndex: {
     groupId: string;
     name?: string;
@@ -394,7 +412,7 @@ async function main() {
       path.join(SCENES, `${gid}.json`),
       JSON.stringify({ id: d.id, groupId: gid, name: d.scene_name, lines }),
     );
-    sceneIndex.push({ groupId: gid, name: d.scene_name, lines: lines.length, category: sceneCategory(gid) });
+    sceneIndex.push({ groupId: gid, name: d.scene_name, lines: lines.length, category: sceneCategory(gid), source: sceneSource.get(gid) });
   }
 
   // --- normalize ko attractive (호감도) dialogue files ---

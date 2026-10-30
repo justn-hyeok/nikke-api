@@ -26,6 +26,8 @@ const STATIC_RESOURCES: [string, string][] = [
   // ko scene/archive lists live at the unsuffixed path (same convention as nikke_list ko)
   ["scene/ko/scene_list.json", "scene_list_ko.json"],
   ["archive/ko/archive_list.json", "archive_list_ko.json"],
+  // scene/ 쪽 구 archive_list에는 archive/ 쪽에 없는 콜라보 이벤트(event_ce004 등)만 남아 있어 합집합으로 수집
+  ["scene/ko/archive_list.json", "scene_archive_list_ko.json"],
   ["scene/ko/sudden_list.json", "sudden_list_ko.json"],
 ];
 
@@ -34,6 +36,7 @@ const LANG_RESOURCES: [string, string][] = [
   ["equip/ItemEquipTable-{l}.json", "ItemEquipTable_{l}.json"],
   ["equip/equip_option_table_v2-{l}.json", "equip_option_table_{l}.json"],
   ["archive/{l}/archive_list_{l}.json", "archive_list_{l}.json"],
+  ["scene/{l}/archive_list_{l}.json", "scene_archive_list_{l}.json"],
   ["scene/{l}/scene_list_{l}.json", "scene_list_{l}.json"],
   ["scene/{l}/sudden_list_{l}.json", "sudden_list_{l}.json"],
 ];
@@ -79,7 +82,12 @@ async function syncScenes(): Promise<number> {
   const queue: [string, string][] = [];
   try {
     const blob = await Promise.all(
-      ["scene_list_ko.json", "sudden_list_ko.json", "archive_list_ko.json"].map((f) =>
+      [
+        "scene_list_ko.json",
+        "sudden_list_ko.json",
+        "archive_list_ko.json",
+        "scene_archive_list_ko.json",
+      ].map((f) =>
         fs.readFile(path.join(OUT_DIR, f), "utf8"),
       ),
     );

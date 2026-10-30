@@ -38,7 +38,7 @@ BlablaLink(공식 위키 도구)의 CDN 데이터를 매일 동기화합니다. 
 | 스토리 정보 | 배경 스토리(4개 언어), 소속 스쿼드, 성우(CV), 호감도 씬 연결(`details.attractiveScenarios[].sceneGroupId` → `/api/scenes/:groupId`), 팀원 목록(캐릭터 이름·이미지로 해석) |
 | **보이스** | 캐릭터 대사 목록 (`details.voices`) — 로비 터치, 전투 진입·승리, 호감도 대사 등 캐릭터당 ~40여 라인. 대사별 `label`(종류)·`text`(대사) 4개 언어 + `voice` 음성 mp3 **ko/en/ja 3종**. `conditionAttractiveLevel`로 해금 조건 포함 |
 
-### 스토리 씬 — 3,210개 (한국어)
+### 스토리 씬 — 3,249개 (한국어)
 
 메인/이벤트/돌발 스토리 + 호감도(Attractive) 시나리오의 전체 대본.
 

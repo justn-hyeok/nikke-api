@@ -375,23 +375,24 @@ GET /api/scenes/d_main_01_01_s?fields=name,lines
 
 ## GET /api/events
 
-스토리 이벤트 카탈로그 — `event_*` 씬 그룹을 이벤트 단위로 묶은 목록입니다 (167개). groupId의 에피소드 접미사(`_01`/`_01_e`/`_prologue`/`_intermission` 등)를 제거해 이벤트 id를 만듭니다. 소스 데이터에 이벤트 이름이 없어 **id가 식별자**입니다.
+스토리 이벤트 카탈로그 — `event_*` 씬 그룹을 이벤트 단위로 묶은 목록입니다 (약 100개). groupId의 에피소드 접미사(`_01`/`_01_e`/`_prologue`/`_intermission` 등)를 제거해 이벤트 id를 만듭니다. 각 이벤트에는 `title`이 붙습니다 — 소스 데이터에 이벤트 이름이 없어 큐레이션 맵(`scripts/event-titles.json`)으로 제공합니다.
 
 ### 쿼리 파라미터
 
 | 파라미터 | 설명 | 예시 |
 |----------|------|------|
-| `q` | 이벤트 id 부분 일치 | `?q=brandnewyear` |
+| `q` | 이벤트 id **또는 title** 부분 일치 | `?q=brandnewyear`, `?q=coin rush` |
 | `limit` / `offset` / `page` / `fields` / `lang` | 목록 공통 | |
 
 ### 응답 예시
 
 ```json
 {
-  "count": 167,
+  "count": 100,
   "events": [
     {
       "id": "event_firstaffection",
+      "title": "FIRST AFFECTION",
       "episodes": 8,
       "totalLines": 412,
       "scenes": ["event_firstaffection_01", "..."]
@@ -402,7 +403,7 @@ GET /api/scenes/d_main_01_01_s?fields=name,lines
 
 ## GET /api/events/:id
 
-이벤트 상세 — 에피소드별 씬 목록(`groupId`·`name`·`lines`)을 반환합니다.
+이벤트 상세 — 타이틀과 에피소드별 씬 목록(`groupId`·`name`·`lines`)을 반환합니다.
 
 ```
 GET /api/events/event_nonsensered
@@ -411,6 +412,7 @@ GET /api/events/event_nonsensered
 ```json
 {
   "id": "event_nonsensered",
+  "title": "NONSENSE RED",
   "episodes": 7,
   "totalLines": 389,
   "scenes": [

@@ -7,6 +7,7 @@ import { cacheHeaders } from "./cache.js";
 import { cdnUrl } from "./cdn.js";
 import { fieldsOf, LOCALES, localize, pickFields } from "./fields.js";
 import { decodeOpenid, gameApi, playerInfo } from "./blabla.js";
+import { createNikkeMcp } from "./mcp.js";
 import { openapi } from "./openapi.js";
 import type { Nikke } from "./types.js";
 
@@ -493,6 +494,7 @@ app.get("/", (c) =>
       "GET /api/tables": "list raw table files",
       "GET /api/tables/:file": "raw synced table JSON",
       "GET /api/cdn?path=": "resolve a Blablalink CDN resource path to its URL",
+      "POST /mcp": "MCP (Streamable HTTP, stateless) — connect ChatGPT/Claude to these routes as tools",
       "GET /api/user/:blablaid":
         "shared-profile lookup (blablaid = blablalink openid, or ?blablaid=/?url=)",
       "GET /api/user/:blablaid/nikke?q=":
@@ -1359,6 +1361,10 @@ app.get("/api/cdn", (c) => {
 });
 
 app.get("/openapi.json", (c) => c.json(openapi));
+
+// MCP endpoint for ChatGPT/Claude connectors — tools wrap the GET routes above
+const mcp = createNikkeMcp(async (p) => app.request(p), characterData.version ?? "0.0.0");
+app.all("/mcp", (c) => mcp.fetch(c.req.raw));
 
 app.notFound((c) => c.json({ error: "not found" }, 404));
 

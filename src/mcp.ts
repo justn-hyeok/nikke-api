@@ -481,6 +481,7 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
       description:
         "Search characters, story events, story scenes and favorite items at once. Returns ids for fetch. Prefer the specific tools when you know the kind.",
       inputSchema: z.object({ query: z.string().min(1) }),
+      outputSchema: z.object({ results: z.array(z.object({ id: z.string(), title: z.string(), url: z.string() })) }),
       annotations: READ_ONLY,
     },
     async ({ query }) => {
@@ -497,10 +498,10 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
         get(`/api/favorites?q=${q}&limit=5&lang=ko&fields=id,name`),
       ]);
       const results = [
-        ...(nikkes.characters ?? []).map((c: any) => ({ id: `nikke:${c.id}`, title: c.name, url: link(`/api/nikkes/${c.id}`) })),
-        ...(events.events ?? []).map((e: any) => ({ id: `event:${e.id}`, title: e.title, url: link(`/api/events/${e.id}`) })),
-        ...(scenes.scenes ?? []).map((s: any) => ({ id: `scene:${s.groupId}`, title: s.name ?? s.groupId, url: link(`/api/scenes/${s.groupId}`) })),
-        ...(favorites.favorites ?? []).map((f: any) => ({ id: `favorite:${f.id}`, title: f.name, url: link(`/api/favorites/${f.id}`) })),
+        ...(nikkes.characters ?? []).map((c: any) => ({ id: `nikke:${c.id}`, title: String(c.name), url: link(`/api/nikkes/${c.id}`) })),
+        ...(events.events ?? []).map((e: any) => ({ id: `event:${e.id}`, title: String(e.title ?? e.id), url: link(`/api/events/${e.id}`) })),
+        ...(scenes.scenes ?? []).map((s: any) => ({ id: `scene:${s.groupId}`, title: String(s.name ?? s.groupId), url: link(`/api/scenes/${s.groupId}`) })),
+        ...(favorites.favorites ?? []).map((f: any) => ({ id: `favorite:${f.id}`, title: String(f.name), url: link(`/api/favorites/${f.id}`) })),
       ];
       const out = JSON.stringify({ results });
       logCall("search", 200, started, out.length);
@@ -514,6 +515,13 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
       title: "Fetch a document",
       description: "Fetch one item by an id from search (nikke:<id>, event:<id>, scene:<groupId>, favorite:<id>).",
       inputSchema: z.object({ id: z.string().min(1) }),
+      outputSchema: z.object({
+        id: z.string(),
+        title: z.string(),
+        text: z.string(),
+        url: z.string(),
+        metadata: z.object({ kind: z.string() }),
+      }),
       annotations: READ_ONLY,
     },
     async ({ id }) => {
@@ -536,7 +544,7 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
       const doc = fitJson(JSON.stringify(data));
       const out = JSON.stringify({
         id,
-        title: data.title ?? data.name ?? key,
+        title: String(data.title ?? data.name ?? key),
         text: doc.text,
         url: link(r[0]),
         metadata: { kind },

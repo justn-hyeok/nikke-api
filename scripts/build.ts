@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile, copyFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { cdnUrl } from "../src/cdn.js";
+import { compareEventScenes, eventIdOf } from "../src/events.js";
 import type {
   Burst,
   Locale,
@@ -447,17 +448,6 @@ async function main() {
       await readFile(path.resolve("scripts/event-titles.json"), "utf8"),
     );
   } catch { /* no overrides file */ }
-  const eventIdOf = (gid: string) => {
-    let prev = gid;
-    for (;;) {
-      const next = prev.replace(
-        /(_\d+(_[es])?|_[es]|_(prologue|epilogue|intermission|end))$/,
-        "",
-      );
-      if (next === prev) return prev;
-      prev = next;
-    }
-  };
   const ROMAN = ["I", "II", "III", "IV", "V"];
   const prettify = (id: string) => {
     const s = id.replace(/^event_/, "");
@@ -484,7 +474,7 @@ async function main() {
   }
   const events = [...eventMap.values()].map((e) => ({
     ...e,
-    scenes: e.scenes.sort(),
+    scenes: e.scenes.sort(compareEventScenes),
   }));
   await writeFile(path.join(OUT, "events.json"), JSON.stringify(events));
   console.log(`events.json: ${events.length} events`);

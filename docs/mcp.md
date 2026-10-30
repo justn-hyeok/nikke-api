@@ -128,17 +128,18 @@ curl -X POST https://nikke-api-gunwoos-projects.vercel.app/mcp \
 | 도구 | 하는 일 |
 |------|---------|
 | `search_nikkes` | 캐릭터 검색 (이름·속성·클래스·버스트·기업·무기·레어) |
-| `get_nikke` | 캐릭터 상세: 스킬(Lv10 기준), 배경, 스쿼드, CV, 호감도 씬. 음성·레벨별 스탯·코스튬은 `fields`로 따로 요청 (예: `details.statsPerLevel`) |
-| `search_scenes` / `get_scene` | 스토리 씬 검색 / 대본 읽기 (한국어) |
+| `get_nikke` | 캐릭터 상세: 스킬(Lv10 기준), 배경, 스쿼드, CV, 호감도 씬. 레벨별 스탯·음성·코스튬 등은 `include`로 추가 (예: `["statsPerLevel"]`). 이름이 여러 캐릭터에 맞으면 후보 목록이 옵니다 |
+| `search_scenes` / `get_scene` | 스토리 씬 검색 / 대본 읽기 (한국어, 기본은 화자·대사만 — 음성·아이콘 URL은 `includeMedia`) |
 | `list_events` / `get_event` | 스토리 이벤트 목록 / 에피소드 씬 목록 |
 | `search_favorites` / `get_favorite` | 소장품 목록 / 레벨별 스탯·스킬 |
 | `get_user_profile` | 유저 프로필 (BlablaLink 공유 링크로 조회) |
 | `get_user_nikkes` / `get_user_nikke` | 유저 보유 니케 목록 / 한 캐릭터의 육성 상태 |
-| `get_user_roster` | 유저 전체 로스터 (느리고 큼) |
-| `api_get` | 그 밖의 모든 `GET /api/*`: 스테이지, 코스튬, 장비, 큐브, 아바타, 원본 테이블 |
+| `api_get` | 전용 도구가 없는 조회: 스테이지, 코스튬, 장비, 큐브, 아바타, 필터 값 (`/api/user`·`/api/tables`는 막혀 있음) |
 
 - 모든 도구는 기본으로 한국어(`lang=ko`)로 응답합니다. 다른 언어는 `lang`에 `en`·`ja`·`zh-TW`를 넣습니다.
-- 응답이 60,000자를 넘으면 잘라서 돌려줍니다. 이때는 `fields`·`limit`·`offset`으로 범위를 좁히세요.
+- 필터는 영문 값만 받습니다. 한글 대응은 각 파라미터 설명에 있습니다 (예: 철갑 = `Iron`, 화력형 = `Attacker`).
+- 응답이 60,000자를 넘으면 목록 뒤쪽을 덜어내고 `truncated`(`returned`·`omitted`·`nextOffset`)를 붙여 돌려줍니다. 나머지는 `offset`으로 이어서 받습니다.
+- 유저 도구는 공유 계정으로 게임 API를 실시간 호출하므로 서버 인스턴스당 분당 30회로 제한됩니다. 전체 로스터 조회(`/api/user/:blablaid/roster`)는 너무 무거워 MCP 도구로 제공하지 않습니다.
 - 유저 도구에는 BlablaLink 공유 ID나 공유 URL 전체(`https://www.blablalink.com/user?openid=...`)를 넣습니다.
 
 질문 예시:
@@ -156,6 +157,7 @@ curl -X POST https://nikke-api-gunwoos-projects.vercel.app/mcp \
 | 브라우저로 열면 405 | 정상입니다. 세션을 저장하지 않는 방식이라 `GET`을 받지 않습니다. |
 | 유저 도구가 503 `blabla credentials not configured` | 서버에 BlablaLink 조회 계정이 설정돼 있지 않습니다. 직접 배포했다면 `BLA_*` 환경변수를 설정합니다. |
 | 유저 도구가 502 | 업스트림(BlablaLink) 오류이거나 조회 계정의 토큰이 만료된 경우입니다. |
-| 응답 끝에 `[truncated …]` | 응답이 너무 큽니다. `fields`·`limit`으로 줄여서 다시 요청합니다. |
+| 응답에 `truncated`가 있음 | 목록이 커서 일부만 왔습니다. `truncated.nextOffset`을 `offset`으로 넣어 이어서 받습니다. |
+| 유저 도구가 `rate limited — retry in Ns` | 분당 호출 한도에 걸렸습니다. 안내된 초만큼 기다린 뒤 다시 호출합니다. |
 
 직접 배포한 서버를 쓴다면 위 URL의 도메인만 자기 주소로 바꾸면 됩니다. 로컬에서는 `npm run dev` 후 `http://localhost:3000/mcp`로 MCP Inspector에서 확인할 수 있습니다.

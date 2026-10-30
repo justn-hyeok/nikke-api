@@ -1057,14 +1057,14 @@ https://nikke-api-gunwoos-projects.vercel.app/mcp
 
 | 도구 | 감싸는 엔드포인트 |
 |------|-------------------|
-| `search_nikkes` / `get_nikke` | `/api/nikkes`, `/api/nikkes/:id` (상세는 기본으로 음성·레벨별 스탯을 뺌 — `fields`로 요청) |
-| `search_scenes` / `get_scene` | `/api/scenes`, `/api/scenes/:groupId` |
+| `search_nikkes` / `get_nikke` | `/api/nikkes`, `/api/nikkes/:id` (상세는 기본으로 음성·레벨별 스탯을 뺌 — `include`로 추가) |
+| `search_scenes` / `get_scene` | `/api/scenes`, `/api/scenes/:groupId` (기본은 화자·대사만) |
 | `list_events` / `get_event` | `/api/events`, `/api/events/:id` |
 | `search_favorites` / `get_favorite` | `/api/favorites`, `/api/favorites/:id` |
-| `get_user_profile` / `get_user_nikkes` / `get_user_nikke` / `get_user_roster` | `/api/user/*` (서버에 BlablaLink 계정이 설정돼 있어야 함) |
-| `api_get` | 그 밖의 모든 `GET /api/*` (스테이지·코스튬·장비·큐브·아바타·테이블) |
+| `get_user_profile` / `get_user_nikkes` / `get_user_nikke` | `/api/user/*` (서버에 BlablaLink 계정 필요, 인스턴스당 분당 30회) |
+| `api_get` | 전용 도구가 없는 조회 (스테이지·코스튬·장비·큐브·아바타·필터 값). `/api/user`·`/api/tables`는 막혀 있음 |
 
-모든 도구는 기본 `lang=ko`로 응답하고, 60,000자를 넘는 응답은 잘라서 돌려줍니다. 클라이언트별 연결 방법은 [docs/mcp.md](docs/mcp.md)를 보세요.
+모든 도구는 기본 `lang=ko`로 응답합니다. 60,000자를 넘는 응답은 목록 뒤쪽을 덜어내고 `truncated`(`nextOffset` 포함)를 붙여 돌려줍니다. 클라이언트별 연결 방법은 [docs/mcp.md](docs/mcp.md)를 보세요.
 
 ## 공통: 필드 선택 `?fields=`
 

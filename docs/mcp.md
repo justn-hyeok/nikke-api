@@ -1,0 +1,163 @@
+# MCP 연결 가이드
+
+nikke-api는 `/mcp`에서 [MCP(Model Context Protocol)](https://modelcontextprotocol.io) 서버를 제공합니다. ChatGPT, Claude 같은 AI 클라이언트에 연결하면 니케 캐릭터·스토리·소장품·유저 데이터를 대화 중에 바로 조회할 수 있습니다.
+
+```
+https://nikke-api-gunwoos-projects.vercel.app/mcp
+```
+
+- 인증이 없습니다. URL만 넣으면 됩니다.
+- 세션을 저장하지 않는 Streamable HTTP 방식입니다. SSE 전용 주소는 따로 없습니다.
+- URL은 반드시 `/mcp`로 끝나야 합니다. 끝에 `/`를 붙이지 마세요.
+
+> 각 서비스의 메뉴 이름과 위치는 자주 바뀝니다. 아래 경로가 화면과 다르면 "커넥터", "MCP", "개발자 모드" 같은 이름의 메뉴를 찾아보세요.
+
+## 목차
+
+- [Claude (웹·데스크톱 앱)](#claude-웹데스크톱-앱)
+- [Claude Code](#claude-code)
+- [ChatGPT](#chatgpt)
+- [Cursor](#cursor)
+- [VS Code (GitHub Copilot)](#vs-code-github-copilot)
+- [원격 MCP를 지원하지 않는 클라이언트](#원격-mcp를-지원하지-않는-클라이언트)
+- [연결 확인](#연결-확인)
+- [제공 도구](#제공-도구)
+- [문제 해결](#문제-해결)
+
+## Claude (웹·데스크톱 앱)
+
+개인 계정(Free·Pro·Max)은 이렇게 추가합니다.
+
+1. **설정 → 커넥터**에서 **커스텀 커넥터 추가**를 누릅니다.
+2. 이름(예: `NIKKE`)을 정하고, URL에 `https://nikke-api-gunwoos-projects.vercel.app/mcp`를 넣습니다.
+3. OAuth 설정은 비워 두고 **추가**를 누릅니다.
+4. 대화 입력창의 **+** 메뉴에서 커넥터를 켜고 질문합니다.
+
+- Free 플랜은 커스텀 커넥터를 하나만 추가할 수 있습니다.
+- Team·Enterprise는 조직 관리자가 **조직 설정 → 커넥터**에서 먼저 추가해야 하고, 그다음 멤버가 각자 연결합니다.
+- Claude는 내 PC가 아니라 Anthropic 서버에서 이 주소로 접속합니다. 그래서 로컬 주소(`localhost`)는 쓸 수 없습니다.
+
+공식 문서: [Custom connectors](https://claude.com/docs/connectors/custom)
+
+## Claude Code
+
+```bash
+claude mcp add --transport http nikke https://nikke-api-gunwoos-projects.vercel.app/mcp
+```
+
+- 기본은 현재 프로젝트에만 추가됩니다. 모든 프로젝트에서 쓰려면 `--scope user`를 붙입니다.
+- `claude mcp list`로 연결 상태를 확인하고, 세션 안에서는 `/mcp`로 도구 목록을 볼 수 있습니다.
+
+## ChatGPT
+
+ChatGPT는 개발자 모드에서 커스텀 MCP 서버를 연결합니다. 무료 플랜에서는 쓸 수 없고, Business·Enterprise는 관리자가 커스텀 커넥터를 허용해야 할 수 있습니다.
+
+1. **설정 → 앱 및 커넥터 → 고급 설정**에서 **개발자 모드**를 켭니다.
+2. 커넥터 화면에서 **만들기**를 누릅니다.
+3. 이름(예: `NIKKE`)과 설명을 적고, URL에 `https://nikke-api-gunwoos-projects.vercel.app/mcp`를 넣습니다.
+4. 인증은 **없음**을 고르고, 신뢰 확인에 체크한 뒤 만듭니다.
+5. 새 대화에서 **+ → 더보기 → 개발자 모드**를 고르고 이 커넥터를 켭니다.
+
+이 서버의 도구는 모두 조회 전용이라 데이터를 바꾸지 않습니다.
+
+## Cursor
+
+`~/.cursor/mcp.json`(모든 프로젝트) 또는 프로젝트의 `.cursor/mcp.json`에 추가합니다.
+
+```json
+{
+  "mcpServers": {
+    "nikke": {
+      "url": "https://nikke-api-gunwoos-projects.vercel.app/mcp"
+    }
+  }
+}
+```
+
+## VS Code (GitHub Copilot)
+
+프로젝트의 `.vscode/mcp.json`에 추가한 뒤, Copilot Chat을 에이전트 모드로 바꿔서 씁니다.
+
+```json
+{
+  "servers": {
+    "nikke": {
+      "type": "http",
+      "url": "https://nikke-api-gunwoos-projects.vercel.app/mcp"
+    }
+  }
+}
+```
+
+## 원격 MCP를 지원하지 않는 클라이언트
+
+로컬(stdio) MCP 서버만 받는 클라이언트는 [`mcp-remote`](https://www.npmjs.com/package/mcp-remote)로 원격 주소를 감싸서 연결합니다. Node.js가 필요합니다.
+
+```json
+{
+  "mcpServers": {
+    "nikke": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://nikke-api-gunwoos-projects.vercel.app/mcp"]
+    }
+  }
+}
+```
+
+## 연결 확인
+
+**MCP Inspector**로 브라우저에서 도구를 직접 호출해 볼 수 있습니다.
+
+```bash
+npx @modelcontextprotocol/inspector
+```
+
+Transport를 `Streamable HTTP`로 고르고 URL을 넣은 뒤 **Connect → Tools → List Tools**를 누릅니다.
+
+**curl**로는 이렇게 확인합니다. 응답은 SSE 형식(`event: message` / `data: {...}`)으로 옵니다.
+
+```bash
+curl -X POST https://nikke-api-gunwoos-projects.vercel.app/mcp \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+## 제공 도구
+
+| 도구 | 하는 일 |
+|------|---------|
+| `search_nikkes` | 캐릭터 검색 (이름·속성·클래스·버스트·기업·무기·레어) |
+| `get_nikke` | 캐릭터 상세: 스킬(Lv10 기준), 배경, 스쿼드, CV, 호감도 씬. 레벨별 스탯·음성·코스튬 등은 `include`로 추가 (예: `["statsPerLevel"]`). 이름이 여러 캐릭터에 맞으면 후보 목록이 옵니다 |
+| `search_scenes` / `get_scene` | 스토리 씬 검색 / 대본 읽기 (한국어, 기본은 화자·대사만 — 음성·아이콘 URL은 `includeMedia`) |
+| `list_events` / `get_event` | 스토리 이벤트 목록 / 에피소드 씬 목록 |
+| `search_favorites` / `get_favorite` | 소장품 목록 / 레벨별 스탯·스킬 |
+| `get_user_profile` | 유저 프로필 (BlablaLink 공유 링크로 조회) |
+| `get_user_nikkes` / `get_user_nikke` | 유저 보유 니케 목록 / 한 캐릭터의 육성 상태 |
+| `api_get` | 전용 도구가 없는 조회: 스테이지, 코스튬, 장비, 큐브, 아바타, 필터 값 (`/api/user`·`/api/tables`는 막혀 있음) |
+
+- 모든 도구는 기본으로 한국어(`lang=ko`)로 응답합니다. 다른 언어는 `lang`에 `en`·`ja`·`zh-TW`를 넣습니다.
+- 필터는 영문 값만 받습니다. 한글 대응은 각 파라미터 설명에 있습니다 (예: 철갑 = `Iron`, 화력형 = `Attacker`).
+- 응답이 60,000자를 넘으면 목록 뒤쪽을 덜어내고 `truncated`(`returned`·`omitted`·`nextOffset`)를 붙여 돌려줍니다. 나머지는 `offset`으로 이어서 받습니다.
+- 유저 도구는 공유 계정으로 게임 API를 실시간 호출하므로 서버 인스턴스당 분당 30회로 제한됩니다. 전체 로스터 조회(`/api/user/:blablaid/roster`)는 너무 무거워 MCP 도구로 제공하지 않습니다.
+- 유저 도구에는 BlablaLink 공유 ID나 공유 URL 전체(`https://www.blablalink.com/user?openid=...`)를 넣습니다.
+
+질문 예시:
+
+- "라피 : 레드 후드 스킬 정리해줘"
+- "에반게리온 콜라보 이벤트 스토리 순서대로 알려줘"
+- "철갑 속성 버스트 3 공격형 니케 목록"
+- "이 공유 링크 유저가 가진 SSR 니케 보여줘: https://www.blablalink.com/user?openid=..."
+
+## 문제 해결
+
+| 증상 | 원인과 해결 |
+|------|-------------|
+| 연결 실패 | URL 끝이 `/mcp`인지, 끝에 `/`가 붙지 않았는지 확인합니다. |
+| 브라우저로 열면 405 | 정상입니다. 세션을 저장하지 않는 방식이라 `GET`을 받지 않습니다. |
+| 유저 도구가 503 `blabla credentials not configured` | 서버에 BlablaLink 조회 계정이 설정돼 있지 않습니다. 직접 배포했다면 `BLA_*` 환경변수를 설정합니다. |
+| 유저 도구가 502 | 업스트림(BlablaLink) 오류이거나 조회 계정의 토큰이 만료된 경우입니다. |
+| 응답에 `truncated`가 있음 | 목록이 커서 일부만 왔습니다. `truncated.nextOffset`을 `offset`으로 넣어 이어서 받습니다. |
+| 유저 도구가 `rate limited — retry in Ns` | 분당 호출 한도에 걸렸습니다. 안내된 초만큼 기다린 뒤 다시 호출합니다. |
+
+직접 배포한 서버를 쓴다면 위 URL의 도메인만 자기 주소로 바꾸면 됩니다. 로컬에서는 `npm run dev` 후 `http://localhost:3000/mcp`로 MCP Inspector에서 확인할 수 있습니다.

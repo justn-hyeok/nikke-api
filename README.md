@@ -179,6 +179,16 @@ GET /api/favorites/200101?lang=ja
 
 단 `/api/user/*`는 실시간 조회라 캐시하지 않습니다 (`Cache-Control: no-store`, ETag 없음).
 
+## MCP (ChatGPT / Claude 연결)
+
+`/mcp`는 MCP 서버입니다. ChatGPT, Claude, Cursor 같은 AI 클라이언트에 아래 URL을 넣으면 이 API를 도구로 쓸 수 있습니다. 인증은 필요 없습니다.
+
+```
+https://nikke-api-gunwoos-projects.vercel.app/mcp
+```
+
+클라이언트별 연결 방법, 도구 목록, 문제 해결은 [docs/mcp.md](docs/mcp.md)에 있습니다.
+
 ## API 문서
 
 - **인터랙티브 문서 (브라우저에서 바로 테스트) → [/docs](https://nikke-api-gunwoos-projects.vercel.app/docs)**

@@ -39,6 +39,7 @@
 - [GET /api/user/:blablaid/nikke/:nameOrId](#get-apiuserblablaidnikkenameorid) — 유저 보유 니케 상세 (이름 부분 일치/id)
 - [GET /api/user/:blablaid/roster](#get-apiuserblablaidroster) — 유저 보유 니케 전체 로스터 (업스트림 원시 형태)
 - [GET /api/cdn](#get-apicdn) — CDN 경로 → URL 변환
+- [MCP `/mcp`](#mcp-mcp) — ChatGPT/Claude 커넥터용 MCP 서버
 - [공통: 필드 선택 `?fields=`](#공통-필드-선택-fields)
 - [공통: 언어 선택 `?lang=`](#공통-언어-선택-lang)
 - [공통: 캐시 헤더](#공통-캐시-헤더)
@@ -1046,6 +1047,28 @@ GET /api/cdn?path=character/ko/nikke_list_v2.json
 `path`에 `..`가 포함되면 400.
 
 ---
+
+## MCP `/mcp`
+
+`/mcp`는 [Model Context Protocol](https://modelcontextprotocol.io) 서버입니다. ChatGPT나 Claude에 연결하면 이 API를 도구처럼 쓸 수 있습니다. 세션을 저장하지 않는 Streamable HTTP 방식이라 인증 없이 URL만 넣으면 됩니다.
+
+```
+https://nikke-api-gunwoos-projects.vercel.app/mcp
+```
+
+- **Claude**: 커스텀 커넥터를 추가하면서 위 URL을 넣습니다. Claude Code는 `claude mcp add --transport http nikke https://nikke-api-gunwoos-projects.vercel.app/mcp`로 추가합니다.
+- **ChatGPT**: 개발자 모드를 켠 뒤 커넥터를 추가하면서 위 URL을 넣고, 인증은 '없음'으로 둡니다.
+
+| 도구 | 감싸는 엔드포인트 |
+|------|-------------------|
+| `search_nikkes` / `get_nikke` | `/api/nikkes`, `/api/nikkes/:id` (상세는 기본으로 음성·레벨별 스탯을 뺌 — `include`로 추가) |
+| `search_scenes` / `get_scene` | `/api/scenes`, `/api/scenes/:groupId` (기본은 화자·대사만) |
+| `list_events` / `get_event` | `/api/events`, `/api/events/:id` |
+| `search_favorites` / `get_favorite` | `/api/favorites`, `/api/favorites/:id` |
+| `get_user_profile` / `get_user_nikkes` / `get_user_nikke` | `/api/user/*` (서버에 BlablaLink 계정 필요, 인스턴스당 분당 30회) |
+| `api_get` | 전용 도구가 없는 조회 (스테이지·코스튬·장비·큐브·아바타·필터 값). `/api/user`·`/api/tables`는 막혀 있음 |
+
+모든 도구는 기본 `lang=ko`로 응답합니다. 60,000자를 넘는 응답은 목록 뒤쪽을 덜어내고 `truncated`(`nextOffset` 포함)를 붙여 돌려줍니다. 클라이언트별 연결 방법은 [docs/mcp.md](docs/mcp.md)를 보세요.
 
 ## 공통: 필드 선택 `?fields=`
 

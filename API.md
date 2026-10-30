@@ -1064,7 +1064,7 @@ https://nikke-api-gunwoos-projects.vercel.app/mcp
 | `get_user_profile` / `get_user_nikkes` / `get_user_nikke` / `get_user_roster` | `/api/user/*` (서버에 BlablaLink 계정이 설정돼 있어야 함) |
 | `api_get` | 그 밖의 모든 `GET /api/*` (스테이지·코스튬·장비·큐브·아바타·테이블) |
 
-모든 도구는 기본 `lang=ko`로 응답하고, 60,000자를 넘는 응답은 잘라서 돌려줍니다.
+모든 도구는 기본 `lang=ko`로 응답하고, 60,000자를 넘는 응답은 잘라서 돌려줍니다. 클라이언트별 연결 방법은 [docs/mcp.md](docs/mcp.md)를 보세요.
 
 ## 공통: 필드 선택 `?fields=`
 

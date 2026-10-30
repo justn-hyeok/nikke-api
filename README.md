@@ -181,25 +181,13 @@ GET /api/favorites/200101?lang=ja
 
 ## MCP (ChatGPT / Claude 연결)
 
-`/mcp`는 [Model Context Protocol](https://modelcontextprotocol.io) 서버입니다. ChatGPT나 Claude에 연결하면 이 API를 도구처럼 쓸 수 있습니다. 세션을 저장하지 않는 Streamable HTTP 방식이라 인증 없이 URL만 넣으면 됩니다.
+`/mcp`는 MCP 서버입니다. ChatGPT, Claude, Cursor 같은 AI 클라이언트에 아래 URL을 넣으면 이 API를 도구로 쓸 수 있습니다. 인증은 필요 없습니다.
 
 ```
 https://nikke-api-gunwoos-projects.vercel.app/mcp
 ```
 
-- **Claude**: 커스텀 커넥터를 추가하면서 위 URL을 넣습니다. Claude Code는 `claude mcp add --transport http nikke https://nikke-api-gunwoos-projects.vercel.app/mcp`로 추가합니다.
-- **ChatGPT**: 개발자 모드를 켠 뒤 커넥터를 추가하면서 위 URL을 넣고, 인증은 '없음'으로 둡니다.
-
-| 도구 | 감싸는 엔드포인트 |
-|------|-------------------|
-| `search_nikkes` / `get_nikke` | `/api/nikkes`, `/api/nikkes/:id` (상세는 기본으로 음성·레벨별 스탯을 뺌 — `fields`로 요청) |
-| `search_scenes` / `get_scene` | `/api/scenes`, `/api/scenes/:groupId` |
-| `list_events` / `get_event` | `/api/events`, `/api/events/:id` |
-| `search_favorites` / `get_favorite` | `/api/favorites`, `/api/favorites/:id` |
-| `get_user_profile` / `get_user_nikkes` / `get_user_nikke` / `get_user_roster` | `/api/user/*` (서버에 BlablaLink 계정이 설정돼 있어야 함) |
-| `api_get` | 그 밖의 모든 `GET /api/*` (스테이지·코스튬·장비·큐브·아바타·테이블) |
-
-모든 도구는 기본 `lang=ko`로 응답하고, 60,000자를 넘는 응답은 잘라서 돌려줍니다.
+클라이언트별 연결 방법, 도구 목록, 문제 해결은 [docs/mcp.md](docs/mcp.md)에 있습니다.
 
 ## API 문서
 

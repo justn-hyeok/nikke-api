@@ -369,6 +369,7 @@ async function main() {
     type?: string;
     nikke?: string;
     level?: number;
+    source?: string;
   }[] = [];
   const sceneCategory = (gid: string) =>
     gid.startsWith("d_main") ? "main"
@@ -436,6 +437,57 @@ async function main() {
   }
   await writeFile(path.join(OUT, "scenes.json"), JSON.stringify(sceneIndex));
   console.log(`scenes/: ${sceneIndex.length} dialogue files (ko)`);
+
+  // --- events.json — event_* scenes grouped per story event, with titles ---
+  // Titles aren't in the upstream data (only Locale_Event localkeys), so they
+  // come from the curated scripts/event-titles.json with a slug fallback.
+  let eventOverrides: Record<string, string> = {};
+  try {
+    eventOverrides = JSON.parse(
+      await readFile(path.resolve("scripts/event-titles.json"), "utf8"),
+    );
+  } catch { /* no overrides file */ }
+  const eventIdOf = (gid: string) => {
+    let prev = gid;
+    for (;;) {
+      const next = prev.replace(
+        /(_\d+(_[es])?|_[es]|_(prologue|epilogue|intermission|end))$/,
+        "",
+      );
+      if (next === prev) return prev;
+      prev = next;
+    }
+  };
+  const ROMAN = ["I", "II", "III", "IV", "V"];
+  const prettify = (id: string) => {
+    const s = id.replace(/^event_/, "");
+    const m = s.match(/^(.*?)(\d+)$/);
+    const base = (m ? m[1] : s).replace(/_/g, " ").toUpperCase();
+    return m ? `${base} ${ROMAN[Number(m[2]) - 1] ?? m[2]}` : base;
+  };
+  const eventTitle = (id: string) => eventOverrides[id] ?? prettify(id);
+  const eventMap = new Map<
+    string,
+    { id: string; title: string; episodes: number; totalLines: number; scenes: string[]; source?: string }
+  >();
+  for (const s of sceneIndex.filter((x) => x.category === "event")) {
+    const id = eventIdOf(s.groupId);
+    let e = eventMap.get(id);
+    if (!e) {
+      e = { id, title: eventTitle(id), episodes: 0, totalLines: 0, scenes: [] };
+      eventMap.set(id, e);
+    }
+    e.episodes++;
+    e.totalLines += s.lines;
+    e.scenes.push(s.groupId);
+    if (s.source) e.source = s.source;
+  }
+  const events = [...eventMap.values()].map((e) => ({
+    ...e,
+    scenes: e.scenes.sort(),
+  }));
+  await writeFile(path.join(OUT, "events.json"), JSON.stringify(events));
+  console.log(`events.json: ${events.length} events`);
 
   // --- normalize favorite (소장품) item files ---
   const FAVS = path.join(OUT, "favorites");

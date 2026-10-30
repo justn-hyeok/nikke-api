@@ -49,7 +49,18 @@ interface SceneIndexEntry {
   name?: string;
   lines: number;
   category?: string;
+  type?: string;
   nikke?: string;
+  source?: string;
+}
+
+interface EventEntry {
+  id: string;
+  title: string;
+  episodes: number;
+  totalLines: number;
+  scenes: string[];
+  source?: string;
 }
 
 interface FavoriteIndexEntry {
@@ -69,6 +80,7 @@ function lazyIndex<T>(file: string): () => Promise<T[]> {
 }
 
 const getScenes = lazyIndex<SceneIndexEntry>("scenes.json");
+const getEvents = lazyIndex<EventEntry>("events.json");
 const getFavorites = lazyIndex<FavoriteIndexEntry>("favorites.json");
 const getCubes = lazyIndex<{ id: number; rare?: string; name: Record<string, string> }>(
   "cubes.json",
@@ -594,28 +606,28 @@ const eventIdOf = (gid: string) => {
   }
 };
 
-const eventGroups = async () => {
-  const groups = new Map<string, SceneIndexEntry[]>();
+const eventGroups = async (): Promise<Map<string, EventEntry>> => {
+  const built = await getEvents();
+  if (built.length) return new Map(built.map((e) => [e.id, e]));
+  // legacy dist without events.json — group scenes on the fly
+  const groups = new Map<string, EventEntry>();
   for (const s of (await getScenes()).filter((x) => x.category === "event")) {
     const id = eventIdOf(s.groupId);
-    const arr = groups.get(id) ?? [];
-    arr.push(s);
-    groups.set(id, arr);
+    const e = groups.get(id) ?? { id, title: id, episodes: 0, totalLines: 0, scenes: [] };
+    e.episodes++;
+    e.totalLines += s.lines;
+    e.scenes.push(s.groupId);
+    groups.set(id, e);
   }
   return groups;
 };
 
 app.get("/api/events", async (c) => {
   const { q } = c.req.query();
-  let list = [...(await eventGroups()).entries()].map(([id, ss]) => ({
-    id,
-    episodes: ss.length,
-    totalLines: ss.reduce((n, s) => n + s.lines, 0),
-    scenes: ss.map((s) => s.groupId),
-  }));
+  let list = [...(await eventGroups()).values()];
   if (q) {
     const nq = norm(q);
-    list = list.filter((e) => norm(e.id).includes(nq));
+    list = list.filter((e) => norm(e.id).includes(nq) || norm(e.title).includes(nq));
   }
   const total = list.length;
   const pg = pageQuery(c, total);
@@ -631,15 +643,22 @@ app.get("/api/events", async (c) => {
 app.get("/api/events/:id", async (c) => {
   const id = c.req.param("id");
   if (!/^[\w-]+$/.test(id)) return c.json({ error: "invalid id" }, 400);
-  const ss = (await eventGroups()).get(id);
-  if (!ss) return c.json({ error: "not found" }, 404);
+  const ev = (await eventGroups()).get(id);
+  if (!ev) return c.json({ error: "not found" }, 404);
+  const sceneIdx = new Map((await getScenes()).map((s) => [s.groupId, s]));
   return c.json(
     pickFields(
       {
-        id,
-        episodes: ss.length,
-        totalLines: ss.reduce((n, s) => n + s.lines, 0),
-        scenes: ss.map((s) => ({ groupId: s.groupId, name: s.name ?? null, lines: s.lines })),
+        id: ev.id,
+        title: ev.title,
+        episodes: ev.episodes,
+        totalLines: ev.totalLines,
+        source: ev.source,
+        scenes: ev.scenes.map((g) => ({
+          groupId: g,
+          name: sceneIdx.get(g)?.name ?? null,
+          lines: sceneIdx.get(g)?.lines ?? 0,
+        })),
       },
       fieldsOf(c),
     ),

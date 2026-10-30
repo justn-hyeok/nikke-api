@@ -395,11 +395,14 @@ GET /api/scenes/d_main_01_01_s?fields=name,lines
       "title": "FIRST AFFECTION",
       "episodes": 8,
       "totalLines": 412,
+      "source": "archive_list",
       "scenes": ["event_firstaffection_01", "..."]
     }
   ]
 }
 ```
+
+`source`는 이벤트 씬 그룹을 발견한 ko 목록 파일입니다 — `scene_list` / `sudden_list` / `archive_list` / `scene_archive_list` 중 하나 (scene/ 쪽 archive_list는 `event_ce004` 같은 신규 콜라보 이벤트만 담고 있습니다). 구 dist 데이터나 목록에 없는 그룹에는 필드가 없습니다.
 
 ## GET /api/events/:id
 
@@ -415,6 +418,7 @@ GET /api/events/event_nonsensered
   "title": "NONSENSE RED",
   "episodes": 7,
   "totalLines": 389,
+  "source": "archive_list",
   "scenes": [
     { "groupId": "event_nonsensered_1", "name": "추억은 흐르는 음악처럼", "lines": 55 }
   ]

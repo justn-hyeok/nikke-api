@@ -198,7 +198,7 @@ export const openapi = {
           { name: "limit", in: "query", schema: { type: "integer", maximum: 500 }, description: "최대 500, 미지정 시 전체" },
           { name: "offset", in: "query", schema: { type: "integer", default: 0 } },
         ],
-        responses: { "200": { description: "이벤트 목록 — id·episodes·totalLines·scenes(groupId 배열)" } },
+        responses: { "200": { description: "이벤트 목록 — id·episodes·totalLines·source·scenes(groupId 배열)" } },
       },
     },
     "/api/events/{id}": {

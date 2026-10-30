@@ -106,6 +106,32 @@ test("/api/events groups event_* scenes per event", async () => {
   assert.ok((await json("/api/events?q=first")).count >= 1);
 });
 
+test("event source records which scene list the group came from", async () => {
+  const ev = (await json("/api/events")).events.find(
+    (e: any) => e.id === "event_firstaffection",
+  );
+  assert.equal(ev.source, "scene_archive_list");
+  const d = await json("/api/events/event_firstaffection");
+  assert.equal(d.source, "scene_archive_list");
+  // scenes.json entries carry the same provenance; groups outside the ko
+  // list files (attractive scenes come from roledata) have no source
+  const scenes = (await json("/api/scenes")).scenes;
+  const byGid = new Map<string, any>(scenes.map((s: any) => [s.groupId, s]));
+  assert.equal(byGid.get("event_firstaffection_01").source, "scene_archive_list");
+  assert.equal(byGid.get("d_main_01_01").source, "scene_list");
+  assert.equal(byGid.get("attract_1_1").source, undefined);
+});
+
+test("/api/events ?q ignores punctuation/whitespace on both sides", async () => {
+  // titles in events.json carry punctuation norm() doesn't strip
+  assert.equal((await json("/api/events?q=acpu freeze")).events[0].id, "event_freezeacpu");
+  assert.equal((await json("/api/events?q=CLAY, MORE")).events[0].id, "event_claymore");
+  assert.equal((await json("/api/events?q=clay more")).count, 1);
+  // id search still works, with or without the underscore
+  assert.equal((await json("/api/events?q=freezeacpu")).count, 1);
+  assert.equal((await json("/api/events?q=event_freezeacpu")).count, 1);
+});
+
 test("scenes index, nikke filter is case/space-insensitive", async () => {
   assert.equal((await json("/api/scenes")).count, 4);
   assert.equal((await json("/api/scenes?category=main")).count, 1);

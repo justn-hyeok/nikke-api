@@ -5,6 +5,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { cacheHeaders } from "./cache.js";
 import { cdnUrl } from "./cdn.js";
+import { groupEventScenes } from "./events.js";
 import { fieldsOf, LOCALES, localize, pickFields } from "./fields.js";
 import { decodeOpenid, gameApi, playerInfo } from "./blabla.js";
 import { openapi } from "./openapi.js";
@@ -87,6 +88,11 @@ const getCubes = lazyIndex<{ id: number; rare?: string; name: Record<string, str
 );
 
 const norm = (s: string) => s.toLowerCase().replace(/[\s:_\-·]/g, "");
+
+// event titles carry real punctuation ('A.C.P.U.! FREEZE!', 'CLAY, MORE'), so
+// title search keeps only letters/digits of any script (incl. Korean) —
+// everything else (whitespace, punctuation, symbols) is dropped on both sides
+const searchNorm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 
 // ?page=N (1-based) or ?offset=N paging — page wins when both are given.
 // page without limit defaults to a 50-item page size; the 500 cap applies
@@ -596,38 +602,21 @@ app.get("/api/scenes", async (c) => {
 // event_* scenes grouped per story event — episode/prologue/epilogue/
 // intermission/_e/_s suffixes are stripped to get the event id. Event
 // names aren't in the source data, so the id is the identifier.
-const eventIdOf = (gid: string) => {
-  // strip repeatedly — ids like event_ce006_1_01_e nest two suffixes
-  let prev = gid;
-  for (;;) {
-    const next = prev.replace(/(_\d+(_[es])?|_[es]|_(prologue|epilogue|intermission|end))$/, "");
-    if (next === prev) return prev;
-    prev = next;
-  }
-};
-
 const eventGroups = async (): Promise<Map<string, EventEntry>> => {
   const built = await getEvents();
   if (built.length) return new Map(built.map((e) => [e.id, e]));
   // legacy dist without events.json — group scenes on the fly
-  const groups = new Map<string, EventEntry>();
-  for (const s of (await getScenes()).filter((x) => x.category === "event")) {
-    const id = eventIdOf(s.groupId);
-    const e = groups.get(id) ?? { id, title: id, episodes: 0, totalLines: 0, scenes: [] };
-    e.episodes++;
-    e.totalLines += s.lines;
-    e.scenes.push(s.groupId);
-    groups.set(id, e);
-  }
-  return groups;
+  return groupEventScenes(await getScenes());
 };
 
 app.get("/api/events", async (c) => {
   const { q } = c.req.query();
   let list = [...(await eventGroups()).values()];
   if (q) {
-    const nq = norm(q);
-    list = list.filter((e) => norm(e.id).includes(nq) || norm(e.title).includes(nq));
+    const nq = searchNorm(q);
+    list = list.filter(
+      (e) => searchNorm(e.id).includes(nq) || searchNorm(e.title).includes(nq),
+    );
   }
   const total = list.length;
   const pg = pageQuery(c, total);

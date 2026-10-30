@@ -32,8 +32,14 @@ async function doLogin(): Promise<string> {
     .map((s) => s.split(";")[0])
     .filter(Boolean);
   const j = (await res.json()) as { code?: number; msg?: string };
-  if (j.code !== 0 || !cookies.length)
-    throw new Error(`blabla login failed: ${j.msg ?? res.status}`);
+  if (j.code !== 0 || !cookies.length) {
+    // ret=11002 "Inner token is invalid" = the stored Level Infinite token in
+    // BLA_TOKEN expired — the fix is env vars, not this request path.
+    const hint = /token|expire/i.test(j.msg ?? "")
+      ? " (BLA_* credentials expired — refresh from blablalink localStorage)"
+      : "";
+    throw new Error(`blabla login failed: ${j.msg ?? res.status}${hint}`);
+  }
   cookieJar = cookies.join("; ");
   return cookieJar;
 }

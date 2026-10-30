@@ -89,6 +89,11 @@ const getCubes = lazyIndex<{ id: number; rare?: string; name: Record<string, str
 
 const norm = (s: string) => s.toLowerCase().replace(/[\s:_\-·]/g, "");
 
+// event titles carry real punctuation ('A.C.P.U.! FREEZE!', 'CLAY, MORE'), so
+// title search keeps only letters/digits of any script (incl. Korean) —
+// everything else (whitespace, punctuation, symbols) is dropped on both sides
+const searchNorm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+
 // ?page=N (1-based) or ?offset=N paging — page wins when both are given.
 // page without limit defaults to a 50-item page size; the 500 cap applies
 // only to an explicit ?limit= — no params at all returns the full list.
@@ -608,8 +613,10 @@ app.get("/api/events", async (c) => {
   const { q } = c.req.query();
   let list = [...(await eventGroups()).values()];
   if (q) {
-    const nq = norm(q);
-    list = list.filter((e) => norm(e.id).includes(nq) || norm(e.title).includes(nq));
+    const nq = searchNorm(q);
+    list = list.filter(
+      (e) => searchNorm(e.id).includes(nq) || searchNorm(e.title).includes(nq),
+    );
   }
   const total = list.length;
   const pg = pageQuery(c, total);

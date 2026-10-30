@@ -530,3 +530,13 @@ test("resolvePaging: no params returns the full list, cap only on explicit limit
     page: 0,
   });
 });
+
+test("/api/events ?q ignores punctuation/whitespace on both sides", async () => {
+  // titles in events.json carry punctuation norm() doesn't strip
+  assert.equal((await json("/api/events?q=acpu freeze")).events[0].id, "event_freezeacpu");
+  assert.equal((await json("/api/events?q=CLAY, MORE")).events[0].id, "event_claymore");
+  assert.equal((await json("/api/events?q=clay more")).count, 1);
+  // id search still works, with or without the underscore
+  assert.equal((await json("/api/events?q=freezeacpu")).count, 1);
+  assert.equal((await json("/api/events?q=event_freezeacpu")).count, 1);
+});

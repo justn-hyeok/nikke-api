@@ -140,6 +140,49 @@ test("resources: filters, nikke template, id completion", async () => {
   assert.deepEqual(done.result.completion.values, ["1"]);
 });
 
+test("search/fetch declare an outputSchema", async () => {
+  const tools = (await rpc("tools/list")).result.tools;
+  for (const n of ["search", "fetch"]) {
+    assert.equal(tools.find((t: any) => t.name === n).outputSchema.type, "object", n);
+  }
+});
+
+// 2026-07-28 clients skip initialize and put the protocol envelope on every
+// request; the same factory has to answer them
+test("mcp serves the 2026-07-28 envelope path", async () => {
+  const modern = async (method: string, params: Record<string, unknown> = {}, name?: string) => {
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        "mcp-protocol-version": "2026-07-28",
+        "mcp-method": method,
+        ...(name && { "mcp-name": name }),
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method,
+        params: {
+          ...params,
+          _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {} },
+        },
+      }),
+    });
+    assert.equal(res.status, 200);
+    return (await res.json()).result;
+  };
+  const discover = await modern("server/discover");
+  assert.ok(discover.supportedVersions.includes("2026-07-28"));
+  assert.match(discover.instructions, /Korean only/);
+  assert.ok((await modern("tools/list")).tools.some((t: any) => t.name === "get_nikke"));
+  const found = await modern("tools/call", { name: "search", arguments: { query: "라피" } }, "search");
+  assert.equal(found.structuredContent.results[0].id, "nikke:1");
+  const filters = await modern("resources/read", { uri: "nikke://filters" }, "nikke://filters");
+  assert.ok(JSON.parse(filters.contents[0].text).classes.length > 0);
+});
+
 test("mcp GET is 405 in stateless mode", async () => {
   assert.equal((await app.request("/mcp")).status, 405);
 });

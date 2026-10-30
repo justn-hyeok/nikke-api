@@ -1,4 +1,4 @@
-import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+import { createMcpHandler, McpServer, ResourceTemplate } from "@modelcontextprotocol/server";
 import * as z from "zod/v4";
 
 // MCP (Model Context Protocol) face of the REST API, served at /mcp so
@@ -155,17 +155,32 @@ export function fitJson(body: string, max = MAX_CHARS): { text: string; isError?
   return { text: render(lo) };
 }
 
+// one structured line per tool call — Vercel logs otherwise only show POST /mcp
+const logCall = (tool: string, status: number, started: number, chars: number) =>
+  console.log(JSON.stringify({ mcp: tool, status, ms: Date.now() - started, chars }));
+
+// JSON results also go out as structuredContent so clients that read typed
+// output (ChatGPT apps, newer Claude clients) don't have to re-parse the text
+const result = (t: string, isError = false) => {
+  if (!isError) {
+    try {
+      const data = JSON.parse(t);
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        return { content: [{ type: "text" as const, text: t }], structuredContent: data as Record<string, unknown> };
+      }
+    } catch { /* not JSON — text only */ }
+  }
+  return text(t, isError);
+};
+
 async function call(api: Fetcher, tool: string, path: string, shape?: (data: any) => unknown) {
   const started = Date.now();
   const res = await api(path);
   let body = await res.text();
   if (res.ok && shape) body = JSON.stringify(shape(JSON.parse(body)));
   const out = fitJson(body);
-  // one structured line per tool call — Vercel logs otherwise only show POST /mcp
-  console.log(
-    JSON.stringify({ mcp: tool, status: res.status, ms: Date.now() - started, chars: out.text.length }),
-  );
-  return text(out.text, !res.ok || out.isError);
+  logCall(tool, res.status, started, out.text.length);
+  return result(out.text, !res.ok || out.isError);
 }
 
 // scene lines carry a voice mp3 and an icon webp URL each — drop them unless
@@ -175,8 +190,23 @@ const shapeScene = (includeMedia: boolean) => (d: any) =>
     ? d
     : { ...d, lines: d.lines.map((l: any) => ({ speaker: l.speakerName ?? l.speaker, text: l.text })) };
 
-export function buildServer(api: Fetcher, version: string) {
-  const server = new McpServer({ name: "nikke-api", version }, { instructions: INSTRUCTIONS });
+// a plain glyph — the game's own art is not ours to use as a brand mark
+const ICON = `data:image/svg+xml;base64,${Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#1f2937"/><text x="32" y="44" font-family="Arial,sans-serif" font-size="30" font-weight="700" text-anchor="middle" fill="#f9fafb">N</text></svg>',
+).toString("base64")}`;
+
+export function buildServer(api: Fetcher, version: string, origin = "") {
+  const server = new McpServer(
+    {
+      name: "nikke-api",
+      title: "NIKKE Data API (unofficial)",
+      version,
+      ...(origin ? { websiteUrl: `${origin}/docs` } : {}),
+      icons: [{ src: ICON, mimeType: "image/svg+xml", sizes: ["64x64"] }],
+    },
+    { instructions: INSTRUCTIONS },
+  );
+  const link = (p: string) => `${origin}${p}`;
 
   const userTool = <T>(name: string, run: (a: T) => Promise<ReturnType<typeof text>>) => async (a: T) => {
     const wait = userRateLimited();
@@ -399,6 +429,7 @@ export function buildServer(api: Fetcher, version: string) {
         blablaid: BLABLAID,
         name: z.string().optional().describe("Name substring, any language"),
         ...FILTERS,
+        fields: z.string().optional().describe("Comma-separated dot paths kept per entry, e.g. 'character.name,level'"),
         lang: LANG,
       }),
       annotations: LIVE,
@@ -416,6 +447,7 @@ export function buildServer(api: Fetcher, version: string) {
           corporation: a.corporation,
           weapon: a.weapon,
           rarity: a.rarity,
+          fields: a.fields,
           lang: a.lang,
         })}`,
       ),
@@ -440,10 +472,112 @@ export function buildServer(api: Fetcher, version: string) {
     ),
   );
 
+  // ChatGPT's connector/deep-research contract: search(query) -> results with
+  // id/title/url, fetch(id) -> one document. Ids are "<kind>:<key>".
+  server.registerTool(
+    "search",
+    {
+      title: "Search everything",
+      description:
+        "Search characters, story events, story scenes and favorite items at once. Returns ids for fetch. Prefer the specific tools when you know the kind.",
+      inputSchema: z.object({ query: z.string().min(1) }),
+      annotations: READ_ONLY,
+    },
+    async ({ query }) => {
+      const started = Date.now();
+      const get = async (p: string) => {
+        const r = await api(p);
+        return r.ok ? ((await r.json()) as any) : {};
+      };
+      const q = enc(query);
+      const [nikkes, events, scenes, favorites] = await Promise.all([
+        get(`/api/nikkes?q=${q}&limit=5&lang=ko&fields=id,name`),
+        get(`/api/events?q=${q}&limit=5&fields=id,title`),
+        get(`/api/scenes?q=${q}&limit=5&fields=groupId,name`),
+        get(`/api/favorites?q=${q}&limit=5&lang=ko&fields=id,name`),
+      ]);
+      const results = [
+        ...(nikkes.characters ?? []).map((c: any) => ({ id: `nikke:${c.id}`, title: c.name, url: link(`/api/nikkes/${c.id}`) })),
+        ...(events.events ?? []).map((e: any) => ({ id: `event:${e.id}`, title: e.title, url: link(`/api/events/${e.id}`) })),
+        ...(scenes.scenes ?? []).map((s: any) => ({ id: `scene:${s.groupId}`, title: s.name ?? s.groupId, url: link(`/api/scenes/${s.groupId}`) })),
+        ...(favorites.favorites ?? []).map((f: any) => ({ id: `favorite:${f.id}`, title: f.name, url: link(`/api/favorites/${f.id}`) })),
+      ];
+      const out = JSON.stringify({ results });
+      logCall("search", 200, started, out.length);
+      return result(out);
+    },
+  );
+
+  server.registerTool(
+    "fetch",
+    {
+      title: "Fetch a document",
+      description: "Fetch one item by an id from search (nikke:<id>, event:<id>, scene:<groupId>, favorite:<id>).",
+      inputSchema: z.object({ id: z.string().min(1) }),
+      annotations: READ_ONLY,
+    },
+    async ({ id }) => {
+      const started = Date.now();
+      const [kind, key] = [id.slice(0, id.indexOf(":")), id.slice(id.indexOf(":") + 1)];
+      const route: Record<string, [string, string, (d: any) => unknown]> = {
+        nikke: [`/api/nikkes/${enc(key)}`, `?lang=ko&fields=${NIKKE_DEFAULT_FIELDS.join(",")}`, (d) => d],
+        event: [`/api/events/${enc(key)}`, "", (d) => d],
+        scene: [`/api/scenes/${enc(key)}`, "", shapeScene(false)],
+        favorite: [`/api/favorites/${enc(key)}`, "?lang=ko", (d) => d],
+      };
+      const r = route[kind];
+      if (!key || !r) return text(JSON.stringify({ error: `unknown id "${id}" — use an id returned by search` }), true);
+      const res = await api(r[0] + r[1]);
+      if (!res.ok) {
+        logCall("fetch", res.status, started, 0);
+        return text(await res.text(), true);
+      }
+      const data: any = r[2](await res.json());
+      const doc = fitJson(JSON.stringify(data));
+      const out = JSON.stringify({
+        id,
+        title: data.title ?? data.name ?? key,
+        text: doc.text,
+        url: link(r[0]),
+        metadata: { kind },
+      });
+      logCall("fetch", res.status, started, out.length);
+      return result(out);
+    },
+  );
+
+  // resources: the filter vocabulary and per-character docs, for clients that
+  // attach context instead of calling tools (Claude's @-mentions)
+  server.registerResource(
+    "filters",
+    "nikke://filters",
+    { title: "Filter values", description: "Every element/class/burst/corporation/weapon/rarity and other filter value", mimeType: "application/json" },
+    async (uri) => ({ contents: [{ uri: uri.href, mimeType: "application/json", text: await (await api("/api/meta/filters")).text() }] }),
+  );
+
+  server.registerResource(
+    "nikke",
+    new ResourceTemplate("nikke://nikke/{id}", {
+      list: undefined,
+      complete: {
+        id: async (value) => {
+          if (!value) return [];
+          const r = await api(`/api/nikkes?q=${enc(value)}&limit=10&fields=id`);
+          return r.ok ? ((await r.json()) as any).characters.map((c: any) => String(c.id)) : [];
+        },
+      },
+    }),
+    { title: "Character detail", description: "One character's profile and skills (Korean)", mimeType: "application/json" },
+    async (uri, vars) => {
+      const res = await api(`/api/nikkes/${enc(String(vars.id))}?lang=ko&fields=${NIKKE_DEFAULT_FIELDS.join(",")}`);
+      return { contents: [{ uri: uri.href, mimeType: "application/json", text: fitJson(await res.text()).text }] };
+    },
+  );
+
   return server;
 }
 
 export const createNikkeMcp = (api: Fetcher, version: string) =>
-  createMcpHandler(() => buildServer(api, version), {
+  createMcpHandler((ctx) => buildServer(api, version, ctx.requestInfo ? new URL(ctx.requestInfo.url).origin : ""), {
     onerror: (e) => console.error(JSON.stringify({ mcp: "error", message: e.message })),
   });

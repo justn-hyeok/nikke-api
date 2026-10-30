@@ -104,6 +104,42 @@ test("fitJson cuts the largest array and keeps valid JSON", () => {
   assert.match(JSON.parse(flat.text).error, /too large/);
 });
 
+test("search + fetch follow ChatGPT's connector contract", async () => {
+  const { results } = (await tool("search", { query: "라피" })).json;
+  const hit = results.find((r: any) => r.id === "nikke:1");
+  assert.equal(hit.title, "라피");
+  assert.equal(hit.url, "http://localhost/api/nikkes/1");
+  const doc = (await tool("fetch", { id: "nikke:1" })).json;
+  assert.equal(doc.id, "nikke:1");
+  assert.equal(doc.title, "라피");
+  assert.ok(JSON.parse(doc.text).details.skills);
+  assert.equal((await tool("fetch", { id: "scene:d_main_01_01" })).json.title, "d_main_01_01");
+  assert.equal((await tool("fetch", { id: "bogus" })).isError, true);
+});
+
+test("JSON results also carry structuredContent", async () => {
+  const { result } = await rpc("tools/call", { name: "list_events", arguments: { q: "first" } });
+  assert.equal(result.structuredContent.count, 1);
+});
+
+test("resources: filters, nikke template, id completion", async () => {
+  const init = await rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } });
+  assert.ok(init.result.serverInfo.icons[0].src.startsWith("data:image/svg+xml"));
+  const list = (await rpc("resources/list")).result.resources.map((r: any) => r.uri);
+  assert.ok(list.includes("nikke://filters"));
+  const templates = (await rpc("resources/templates/list")).result.resourceTemplates.map((t: any) => t.uriTemplate);
+  assert.ok(templates.includes("nikke://nikke/{id}"));
+  const filters = JSON.parse((await rpc("resources/read", { uri: "nikke://filters" })).result.contents[0].text);
+  assert.ok(filters.classes.length > 0);
+  const nikke = JSON.parse((await rpc("resources/read", { uri: "nikke://nikke/1" })).result.contents[0].text);
+  assert.equal(nikke.name, "라피");
+  const done = await rpc("completion/complete", {
+    ref: { type: "ref/resource", uri: "nikke://nikke/{id}" },
+    argument: { name: "id", value: "라피" },
+  });
+  assert.deepEqual(done.result.completion.values, ["1"]);
+});
+
 test("mcp GET is 405 in stateless mode", async () => {
   assert.equal((await app.request("/mcp")).status, 405);
 });

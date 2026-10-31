@@ -54,7 +54,7 @@ test("mcp tools wrap the REST routes", async () => {
   const list = await tool("search_nikkes", { element: "Fire" });
   assert.equal(list.json.characters[0].name, "라피"); // lang defaults to ko
   assert.equal(list.json.characters[0].costumes, undefined); // list is trimmed
-  assert.equal((await tool("list_events", { q: "first" })).json.count, 1);
+  assert.equal((await tool("list_events", { q: "first" })).json.count, 2); // FIRST AFFECTION + its bonus episode
   assert.ok((await tool("api_get", { path: "/api/meta/filters" })).json.classes.length > 0);
 });
 
@@ -127,7 +127,7 @@ test("links follow X-Forwarded-Proto behind a TLS proxy", () => {
 
 test("JSON results also carry structuredContent", async () => {
   const { result } = await rpc("tools/call", { name: "list_events", arguments: { q: "first" } });
-  assert.equal(result.structuredContent.count, 1);
+  assert.equal(result.structuredContent.count, 2);
 });
 
 test("resources: filters, nikke template, id completion", async () => {
@@ -200,4 +200,82 @@ test("live user tools are rate limited per instance", async () => {
   let limited;
   for (let i = 0; i < 31; i++) limited = await tool("get_user_profile", { blablaid: "x" });
   assert.match(limited!.json.error, /rate limited/);
+});
+
+test("이격 versions are linked to their original", async () => {
+  const anchor = (await tool("search_nikkes", { q: "이노센트" })).json;
+  assert.deepEqual(anchor.characters.map((c: any) => c.id), [2, 3]); // original + variant
+  assert.deepEqual((await tool("search_nikkes", { q: "이노센트", family: false })).json.characters.map((c: any) => c.id), [3]);
+  const detail = (await tool("get_nikke", { nameOrId: "3" })).json;
+  assert.equal(detail.family.base, "앵커");
+  assert.deepEqual(detail.family.members.map((m: any) => m.id), [2, 3]);
+  // affection scenes of the variant are found from the original's name
+  assert.equal((await tool("search_scenes", { nikke: "앵커" })).json.count, 1);
+});
+
+test("read_event returns the whole script as speaker lines", async () => {
+  const ev = (await tool("read_event", { id: "event_firstaffection" })).json;
+  assert.equal(ev.count, 2);
+  assert.deepEqual(ev.episodes[0].lines, ["비 오는 밤.", "앵커: 지휘관님, 우산 가져왔어요!"]);
+  assert.deepEqual(ev.episodes[1].lines, []); // listed scene without a file
+  assert.equal((await tool("read_event", { id: "nope" })).isError, true);
+});
+
+test("search_lines finds dialogue and labels its event", async () => {
+  const hit = (await tool("search_lines", { q: "우산!" })).json; // punctuation ignored
+  assert.equal(hit.count, 1);
+  assert.equal(hit.lines[0].speaker, "앵커");
+  assert.deepEqual(hit.lines[0].scene.event, { id: "event_firstaffection", title: "FIRST AFFECTION" });
+  // speaker by a variant's name reaches the original's lines
+  assert.equal((await tool("search_lines", { speaker: "앵커: 이노센트 메이드" })).json.count, 1);
+  assert.equal((await tool("search_lines", { speaker: "앵커: 이노센트 메이드", family: false })).json.count, 0);
+  assert.equal((await tool("search_lines", {})).isError, true);
+});
+
+test("nikke_appearances rolls scenes up per event", async () => {
+  const ap = (await tool("nikke_appearances", { nameOrId: "Anchor: Innocent Maid" })).json;
+  assert.equal(ap.family.base, "앵커");
+  assert.deepEqual(ap.events, [{ id: "event_firstaffection", title: "FIRST AFFECTION", scenes: 1, lines: 1 }]);
+  assert.equal((await tool("nikke_appearances", { nameOrId: "라피", category: "main" })).json.scenes[0].groupId, "d_main_01_01");
+});
+
+test("compare_nikkes prefers an exact name and flags ambiguity", async () => {
+  const cmp = (await tool("compare_nikkes", { nikkes: ["앵커", "라피"] })).json;
+  assert.deepEqual(cmp.nikkes.map((n: any) => n.id), [2, 1]); // 앵커 also matches its 이격
+  const amb = (await tool("compare_nikkes", { nikkes: ["앵", "라피"] })).json;
+  assert.equal(amb.nikkes[0].ambiguous.length, 2);
+});
+
+test("story_route resolves the curated order against the data", async () => {
+  const r = (await tool("story_route")).json;
+  assert.equal(r.entries[0].key, "chapter:0");
+  assert.equal(r.entries[0].firstScene, "d_main_01_01"); // Chapter 0 = d_main_01
+  const lk = r.entries.find((e: any) => e.title === "LAST KINGDOM");
+  assert.equal(lk.key, "event_lastkingdom1");
+  assert.equal(lk.inData, false); // fixtures have no Last Kingdom scenes
+  assert.match(lk.note, /스크립트가 없음/);
+  const fa = r.entries.find((e: any) => e.title === "FIRST AFFECTION");
+  assert.deepEqual([fa.inData, fa.required, fa.importance, fa.episodes], [true, false, "low", 3]); // + bonus episode
+  assert.ok(!r.unplaced.some((e: any) => e.id === "event_firstaffection")); // placed now
+  assert.ok(r.unplaced.some((e: any) => e.id === "event_claymore"));
+  // a bonus episode event joins its parent's entry instead of "unplaced"
+  assert.ok(!r.unplaced.some((e: any) => e.id === "event_firstaffection_b01"));
+  assert.deepEqual(fa.ids, ["event_firstaffection", "event_firstaffection_b01"]);
+  assert.ok(r.sources.S.url.startsWith("https://ssissun.github.io/"));
+});
+
+test("next_story walks the route from a chapter or an entry", async () => {
+  const n = (await tool("next_story", { chapter: 26, limit: 3 })).json;
+  assert.deepEqual(n.next.map((e: any) => e.title), ["NEW YEAR, NEW SWORD", "SECOND AFFECTION", "FIRST AFFECTION"]);
+  assert.deepEqual(n.missed, []); // nothing reported as read
+  const req = (await tool("next_story", { chapter: 26, limit: 3, requiredOnly: true })).json;
+  assert.deepEqual(req.next.map((e: any) => e.title), ["NEW YEAR, NEW SWORD", "SECOND AFFECTION", "LAST KINGDOM"]);
+  // titles, event ids and chapter numbers all name an entry
+  const after = (await tool("next_story", { after: "last kingdom", done: ["event_dirtybackyard"], limit: 1 })).json;
+  assert.equal(after.next[0].title, "BOOM'S DAY");
+  // FIRST AFFECTION is optional, so it's never "missed"; the fixtures hold no
+  // required story before chapter 30
+  assert.deepEqual((await tool("next_story", { chapter: 30, done: ["x"] })).json.missed, []);
+  assert.equal((await tool("next_story", {})).isError, true);
+  assert.equal((await tool("next_story", { after: "nope" })).isError, true);
 });

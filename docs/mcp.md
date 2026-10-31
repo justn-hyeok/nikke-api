@@ -137,9 +137,15 @@ curl -X POST https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp \
 | `get_user_nikkes` / `get_user_nikke` | 유저 보유 니케 목록 / 한 캐릭터의 육성 상태 |
 | `api_get` | 전용 도구가 없는 조회: 스테이지, 코스튬, 장비, 큐브, 아바타, 필터 값 (`/api/user`·`/api/tables`는 막혀 있음) |
 | `search` / `fetch` | 캐릭터·이벤트·씬·소장품 통합 검색 / id로 문서 가져오기 (ChatGPT 커넥터 규격, id 형식 `nikke:201601`·`event:event_claymore`) |
+| `read_event` | 이벤트 하나의 대본 전체를 에피소드 순서대로 (`화자: 대사`). 요약·다시 들려주기용 |
+| `search_lines` | 대사 본문·화자로 전체 스토리 검색. 결과마다 씬·이벤트 표시 |
+| `nikke_appearances` | 캐릭터가 나오는 씬과 이벤트를 대사 수 순으로 |
+| `compare_nikkes` | 2–4명의 프로필·스킬을 한 번에 (이름이 정확히 맞는 캐릭터 우선) |
+| `story_route` / `next_story` | 스토리 감상 순서 (커뮤니티 가이드 기준, 50챕터까지) / 지금 진행 위치에서 다음에 볼 스토리 |
 
 - 모든 도구는 기본으로 한국어(`lang=ko`)로 응답합니다. 다른 언어는 `lang`에 `en`·`ja`·`zh-TW`를 넣습니다.
 - 리소스도 제공합니다: `nikke://filters`(필터 값 전체), `nikke://nikke/{id}`(캐릭터 상세, id 자동완성 지원). Claude에서 컨텍스트로 첨부할 때 씁니다.
+- 이격은 원본과 묶여서 검색됩니다. `홍련`을 찾으면 `홍련 : 흑영`·`홍련 : 신살`도 나오고, 호감도 씬·대사 검색·등장 씬도 같은 묶음으로 찾습니다. 끄려면 `family: false`.
 - 필터는 영문 값만 받습니다. 한글 대응은 각 파라미터 설명에 있습니다 (예: 철갑 = `Iron`, 화력형 = `Attacker`).
 - 응답이 60,000자를 넘으면 목록 뒤쪽을 덜어내고 `truncated`(`returned`·`omitted`·`nextOffset`)를 붙여 돌려줍니다. 나머지는 `offset`으로 이어서 받습니다.
 - 유저 도구는 공유 계정으로 게임 API를 실시간 호출하므로 서버 인스턴스당 분당 30회로 제한됩니다. 전체 로스터 조회(`/api/user/:blablaid/roster`)는 너무 무거워 MCP 도구로 제공하지 않습니다.
@@ -150,6 +156,10 @@ curl -X POST https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp \
 - "라피 : 레드 후드 스킬 정리해줘"
 - "에반게리온 콜라보 이벤트 스토리 순서대로 알려줘"
 - "철갑 속성 버스트 3 공격형 니케 목록"
+- "BUNNY X 777 이벤트 스토리 요약해줘"
+- "라피가 '방주의 영웅'이라는 말 나온 장면 찾아줘"
+- "아니스가 제일 많이 나오는 이벤트 뭐야?"
+- "메인 24챕터까지 깼는데 다음에 뭐 봐?"
 - "이 공유 링크 유저가 가진 SSR 니케 보여줘: https://www.blablalink.com/user?openid=..."
 
 ## 문제 해결

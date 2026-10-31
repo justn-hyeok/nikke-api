@@ -6,6 +6,8 @@ import path from "node:path";
 import { cacheHeaders } from "./cache.js";
 import { cdnUrl } from "./cdn.js";
 import { groupEventScenes } from "./events.js";
+import { buildFamilies } from "./family.js";
+import { ROUTE_COVERAGE_CHAPTER, ROUTE_SOURCES, STORY_ROUTE } from "./story-route.js";
 import { fieldsOf, LOCALES, localize, pickFields } from "./fields.js";
 import { decodeOpenid, gameApi, playerInfo } from "./blabla.js";
 import { createNikkeMcp } from "./mcp.js";
@@ -27,6 +29,7 @@ const characterData: CharacterData = JSON.parse(
 const characters = characterData.characters;
 const byId = new Map(characters.map((c) => [c.id, c]));
 const byResourceId = new Map(characters.map((c) => [c.resourceId, c]));
+const families = buildFamilies(characters);
 const detailCache = new Map<number, unknown>();
 
 async function getDetail(id: number): Promise<unknown | null> {
@@ -89,6 +92,7 @@ const getCubes = lazyIndex<{ id: number; rare?: string; name: Record<string, str
 );
 
 const norm = (s: string) => s.toLowerCase().replace(/[\s:_\-·]/g, "");
+const truthy = (v?: string) => v === "1" || v === "true";
 
 // event titles carry real punctuation ('A.C.P.U.! FREEZE!', 'CLAY, MORE'), so
 // title search keeps only letters/digits of any script (incl. Korean) —
@@ -483,6 +487,11 @@ app.get("/", (c) =>
       "GET /api/scenes/:groupId": "scene dialogue lines (ko)",
       "GET /api/events": "story event list — event_* scene groups; filter: q",
       "GET /api/events/:id": "event detail — episode scene list",
+      "GET /api/events/:id/script": "whole event script, episode by episode ('speaker: text')",
+      "GET /api/lines": "dialogue search; q (text) and/or speaker, family, category",
+      "GET /api/nikkes/:id/appearances": "scenes and events a character speaks in (all versions)",
+      "GET /api/story/route": "story reading order (community guide)",
+      "GET /api/story/next": "next stories on the route; chapter|after, done, required",
       "GET /api/stages": "campaign stage list; filters: q, chapter, mode; limit/offset",
       "GET /api/stages/:id": "stage detail (id)",
       "GET /api/costumes": "costume list; filters: q, grade, nikke; limit/offset",
@@ -520,6 +529,11 @@ app.get("/api/nikkes", (c) => {
   const { q, element, class: cls, burst, corporation, weapon, rarity, limit, offset } = c.req.query();
   let list = characters;
   if (q) list = findByName(q);
+  // ?family=1 widens a name search to every version of the matched
+  // characters (original + 이격), grouped per family
+  if (q && truthy(c.req.query("family"))) {
+    list = [...new Set(list.map((n) => families.of(n)))].flatMap((f) => f.members);
+  }
   const n = (v?: string) => v?.toLowerCase();
   if (element) list = list.filter((x) => n(x.element ?? undefined) === n(element));
   if (cls) list = list.filter((x) => n(x.class) === n(cls));
@@ -541,13 +555,17 @@ app.get("/api/nikkes", (c) => {
 app.get("/api/nikkes/:id", async (c) => {
   const key = c.req.param("id");
   const fields = fieldsOf(c);
+  const one = async (n: Nikke) => {
+    const d = (await withDetail(n)) as object;
+    return c.json(pickFields({ ...d, family: families.view(families.of(n)) }, fields));
+  };
   if (/^\d+$/.test(key)) {
     const n = Number(key);
     const hit = byId.get(n) ?? byResourceId.get(n);
-    if (hit) return c.json(pickFields(await withDetail(hit), fields));
+    if (hit) return one(hit);
   }
   const hits = findByName(key);
-  if (hits.length === 1) return c.json(pickFields(await withDetail(hits[0]), fields));
+  if (hits.length === 1) return one(hits[0]);
   if (hits.length > 1) return c.json({ count: hits.length, characters: pickFields(hits, fields) });
   return c.json({ error: "not found" }, 404);
 });
@@ -582,7 +600,11 @@ app.get("/api/scenes", async (c) => {
   const { q, category, nikke, limit, offset } = c.req.query();
   let list = await getScenes();
   if (category) list = list.filter((s) => s.category === category);
-  if (nikke) {
+  const fam = nikke && truthy(c.req.query("family")) ? families.byName(nikke) : undefined;
+  if (fam) {
+    const names = new Set(families.names(fam).map(norm));
+    list = list.filter((s) => s.nikke != null && names.has(norm(s.nikke)));
+  } else if (nikke) {
     const nn = norm(nikke);
     list = list.filter((s) => s.nikke != null && norm(s.nikke).includes(nn));
   }
@@ -668,6 +690,218 @@ app.get("/api/scenes/:groupId", async (c) => {
   const fields = fieldsOf(c);
   if (fields || wantsLang(c)) return c.json(pickFields(JSON.parse(body), fields));
   return c.body(body, 200, { "Content-Type": "application/json" });
+});
+
+// every scene's dialogue reduced to speaker + text, read once on first use —
+// line search and appearance lookups scan this instead of ~80MB of files
+interface ScriptLine { s: string; t: string }
+let scriptsCache: Promise<Map<string, ScriptLine[]>> | undefined;
+const getScripts = () =>
+  (scriptsCache ??= (async () => {
+    const scripts = new Map<string, ScriptLine[]>();
+    const ids = (await getScenes()).map((s) => s.groupId);
+    // batched so thousands of files never hit the open-file limit
+    for (let i = 0; i < ids.length; i += 64) {
+      await Promise.all(
+        ids.slice(i, i + 64).map(async (g) => {
+          try {
+            const d = JSON.parse(await readFile(path.join(DIST, "scenes", `${g}.json`), "utf8"));
+            scripts.set(g, (d.lines ?? []).map((l: any) => ({ s: l.speakerName ?? l.speaker ?? "", t: l.text ?? "" })));
+          } catch { /* scene listed without a file */ }
+        }),
+      );
+    }
+    return scripts;
+  })());
+
+// scene → story event, for labelling hits
+const eventOfScene = async () => {
+  const m = new Map<string, { id: string; title: string }>();
+  for (const e of (await eventGroups()).values()) for (const g of e.scenes) m.set(g, { id: e.id, title: e.title });
+  return m;
+};
+
+const sceneLabel = (s: SceneIndexEntry | undefined, ev?: { id: string; title: string }) => ({
+  name: s?.name ?? null,
+  category: s?.category ?? null,
+  ...(s?.nikke ? { nikke: s.nikke } : {}),
+  ...(ev ? { event: ev } : {}),
+});
+
+// one event's whole script, episode by episode, paged on episodes — the
+// "summarize this event" path without a get_scene call per episode
+app.get("/api/events/:id/script", async (c) => {
+  const id = c.req.param("id");
+  if (!/^[\w-]+$/.test(id)) return c.json({ error: "invalid id" }, 400);
+  const ev = (await eventGroups()).get(id);
+  if (!ev) return c.json({ error: "not found" }, 404);
+  const pg = pageQuery(c, ev.scenes.length);
+  if ("error" in pg) return c.json({ error: pg.error }, 400);
+  const [scripts, idx] = [await getScripts(), new Map((await getScenes()).map((s) => [s.groupId, s]))];
+  return c.json({
+    id: ev.id,
+    title: ev.title,
+    count: ev.scenes.length,
+    offset: pg.off,
+    episodes: ev.scenes.slice(pg.off, pg.off + pg.lim).map((g) => ({
+      groupId: g,
+      name: idx.get(g)?.name ?? null,
+      lines: (scripts.get(g) ?? []).map((l) => (l.s && l.s !== "Narration" ? `${l.s}: ${l.t}` : l.t)),
+    })),
+  });
+});
+
+// full-text search over dialogue; speaker narrows to one character (and,
+// with family=1, every version of them)
+app.get("/api/lines", async (c) => {
+  const { q, speaker, category } = c.req.query();
+  if (!q && !speaker) return c.json({ error: "q or speaker required" }, 400);
+  const nq = q ? searchNorm(q) : "";
+  const fam = speaker && truthy(c.req.query("family")) ? families.byName(speaker) : undefined;
+  const speakers = fam ? new Set(families.names(fam).map(norm)) : undefined;
+  const ns = speaker ? norm(speaker) : "";
+  const idx = new Map((await getScenes()).map((s) => [s.groupId, s]));
+  const evOf = await eventOfScene();
+  const hits: { groupId: string; line: number; speaker: string; text: string }[] = [];
+  for (const [g, lines] of await getScripts()) {
+    if (category && idx.get(g)?.category !== category) continue;
+    lines.forEach((l, i) => {
+      if (speaker && !(speakers ? speakers.has(norm(l.s)) : norm(l.s) === ns)) return;
+      if (nq && !searchNorm(l.t).includes(nq)) return;
+      hits.push({ groupId: g, line: i, speaker: l.s, text: l.t });
+    });
+  }
+  const pg = pageQuery(c, hits.length);
+  if ("error" in pg) return c.json({ error: pg.error }, 400);
+  return c.json({
+    count: hits.length,
+    offset: pg.off,
+    lines: hits.slice(pg.off, pg.off + pg.lim).map((h) => ({ ...h, scene: sceneLabel(idx.get(h.groupId), evOf.get(h.groupId)) })),
+  });
+});
+
+// every scene a character speaks in (all versions of them), most lines first
+app.get("/api/nikkes/:id/appearances", async (c) => {
+  const key = c.req.param("id");
+  const n = /^\d+$/.test(key) ? byId.get(Number(key)) ?? byResourceId.get(Number(key)) : findByName(key)[0];
+  const fam = n ? families.of(n) : families.byName(key);
+  if (!fam) return c.json({ error: "not found" }, 404);
+  const { category } = c.req.query();
+  const speakers = new Set(families.names(fam).map(norm));
+  const idx = new Map((await getScenes()).map((s) => [s.groupId, s]));
+  const evOf = await eventOfScene();
+  const rows: { groupId: string; lines: number }[] = [];
+  for (const [g, lines] of await getScripts()) {
+    if (category && idx.get(g)?.category !== category) continue;
+    const spoken = lines.filter((l) => speakers.has(norm(l.s))).length;
+    if (spoken) rows.push({ groupId: g, lines: spoken });
+  }
+  rows.sort((a, b) => b.lines - a.lines);
+  // events are what people browse by, so roll scenes up per event too
+  const events = new Map<string, { id: string; title: string; scenes: number; lines: number }>();
+  for (const r of rows) {
+    const ev = evOf.get(r.groupId);
+    if (!ev) continue;
+    const e = events.get(ev.id) ?? { ...ev, scenes: 0, lines: 0 };
+    e.scenes++;
+    e.lines += r.lines;
+    events.set(ev.id, e);
+  }
+  const pg = pageQuery(c, rows.length);
+  if ("error" in pg) return c.json({ error: pg.error }, 400);
+  return c.json({
+    family: families.view(fam),
+    count: rows.length,
+    offset: pg.off,
+    events: [...events.values()].sort((a, b) => b.lines - a.lines),
+    scenes: rows.slice(pg.off, pg.off + pg.lim).map((r) => ({ ...r, ...sceneLabel(idx.get(r.groupId), evOf.get(r.groupId)) })),
+  });
+});
+
+// --- story play order (curated in story-route.ts) ---
+
+// main chapter (game number, 0-based) → its scene groupIds (d_main_01_* = Chapter 0)
+const mainChapters = async () => {
+  const m = new Map<number, string[]>();
+  for (const s of await getScenes()) {
+    const hit = s.category === "main" && /^d_main_(\d+)_/.exec(s.groupId);
+    if (!hit) continue;
+    const chapter = Number(hit[1]) - 1;
+    m.set(chapter, [...(m.get(chapter) ?? []), s.groupId]);
+  }
+  return m;
+};
+
+// the curated route resolved against the data, with chapters past the
+// guide's coverage appended so the route reaches the latest chapter
+async function storyRoute() {
+  const [chapters, events, scenes] = [await mainChapters(), await eventGroups(), await getScenes()];
+  const last = Math.max(-1, ...chapters.keys());
+  const extra = Array.from({ length: Math.max(0, last - ROUTE_COVERAGE_CHAPTER) }, (_, i) => ({ kind: "main" as const, chapter: ROUTE_COVERAGE_CHAPTER + 1 + i }));
+  return [...STORY_ROUTE, ...extra].map((e, step) => {
+    if (e.kind === "main") {
+      const sc = chapters.get(e.chapter) ?? [];
+      const note = e.chapter > ROUTE_COVERAGE_CHAPTER ? "가이드 범위 밖 — 이벤트 배치 정보 없음" : "note" in e ? e.note : undefined;
+      return { step, kind: "main" as const, key: `chapter:${e.chapter}`, ids: [] as string[], chapter: e.chapter, title: `메인 ${e.chapter}챕터`, required: true, scenes: sc.length, firstScene: sc[0] ?? null, inData: sc.length > 0, ...(note ? { note } : {}) };
+    }
+    // bonus episodes ship as their own "<id>_bNN" events — they belong to the same entry
+    const found = e.ids.flatMap((id) => [id, ...[...events.keys()].filter((k) => k.startsWith(`${id}_b`) && /_b\d+$/.test(k))]).filter((id) => events.has(id));
+    const affectionScenes = e.nikke ? scenes.filter((s) => s.category === "attractive" && s.nikke === e.nikke).length : 0;
+    const inData = e.kind === "affection" ? affectionScenes > 0 : found.length > 0;
+    return {
+      step,
+      kind: e.kind,
+      key: e.ids[0] ?? `${e.kind}:${e.title}`,
+      ids: found,
+      title: e.title,
+      ...(e.nikke ? { nikke: e.nikke } : {}),
+      required: e.required,
+      ...(e.importance ? { importance: e.importance } : {}),
+      ...(e.kind === "affection" ? { scenes: affectionScenes } : { episodes: found.reduce((n, id) => n + (events.get(id)?.episodes ?? 0), 0) }),
+      inData,
+      ...(e.note || !inData ? { note: [e.note, inData ? "" : "이 API 데이터에는 스크립트가 없음"].filter(Boolean).join(" · ") } : {}),
+    };
+  });
+}
+
+app.get("/api/story/route", async (c) => {
+  const entries = await storyRoute();
+  const placed = new Set(entries.flatMap((e) => e.ids));
+  const unplaced = [...(await eventGroups()).values()].filter((e) => !placed.has(e.id)).map((e) => ({ id: e.id, title: e.title, episodes: e.episodes }));
+  return c.json({ sources: ROUTE_SOURCES, coverageChapter: ROUTE_COVERAGE_CHAPTER, count: entries.length, entries, unplaced });
+});
+
+// where to go next: after main chapter N (or a given route entry), skipping
+// what was already read; `missed` lists required stories placed before that
+// point that weren't marked read
+app.get("/api/story/next", async (c) => {
+  const { chapter, after } = c.req.query();
+  const done = new Set((c.req.query("done") ?? "").split(",").map((s) => searchNorm(s)).filter(Boolean));
+  const limit = Math.min(Number(c.req.query("limit") ?? 5) || 5, 20);
+  const requiredOnly = truthy(c.req.query("required"));
+  const entries = await storyRoute();
+  type Entry = (typeof entries)[number];
+  // an entry is named by its key, any of its event ids, its title or (main) its chapter number
+  const names = (e: Entry) => [e.key, ...e.ids, e.title, ...(e.kind === "main" ? [String(e.chapter)] : [])].map(searchNorm);
+  let pos: number;
+  if (after) {
+    const na = searchNorm(after);
+    pos = entries.findIndex((e) => names(e).includes(na));
+    if (pos < 0) return c.json({ error: `"${after}" is not on the route — use a title or event id from /api/story/route` }, 404);
+  } else if (chapter != null && chapter !== "") {
+    const n = Number(chapter);
+    if (!Number.isInteger(n) || n < -1) return c.json({ error: "invalid chapter" }, 400);
+    // -1 = nothing read yet; otherwise the main chapter itself
+    pos = n === -1 ? -1 : entries.findIndex((e) => e.kind === "main" && e.chapter === n);
+    if (n !== -1 && pos < 0) return c.json({ error: `chapter ${n} is not on the route` }, 404);
+  } else {
+    return c.json({ error: "chapter or after required" }, 400);
+  }
+  const isDone = (e: Entry) => names(e).some((n) => done.has(n));
+  const next = entries.slice(pos + 1).filter((e) => !isDone(e) && (!requiredOnly || e.required)).slice(0, limit);
+  // only meaningful when the reader says what they've read
+  const missed = done.size ? entries.slice(0, pos + 1).filter((e) => e.kind !== "main" && e.required && e.inData && !isDone(e)) : [];
+  return c.json({ position: pos >= 0 ? entries[pos] : null, next, missed, sources: ROUTE_SOURCES });
 });
 
 app.get("/api/stages", async (c) => {

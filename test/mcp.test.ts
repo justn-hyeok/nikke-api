@@ -245,3 +245,29 @@ test("compare_nikkes prefers an exact name and flags ambiguity", async () => {
   const amb = (await tool("compare_nikkes", { nikkes: ["앵", "라피"] })).json;
   assert.equal(amb.nikkes[0].ambiguous.length, 2);
 });
+
+test("story_route resolves the curated order against the data", async () => {
+  const r = (await tool("story_route")).json;
+  const keys = r.entries.map((e: any) => e.key);
+  assert.equal(keys[0], "chapter:0");
+  assert.equal(r.entries[0].firstScene, "d_main_01_01"); // Chapter 0 = d_main_01
+  // fixtures have only one chapter, so curated events show as not in data
+  assert.ok(r.entries.some((e: any) => e.key === "event_lastkingdom1" && !e.inData && e.basis.includes("C")));
+  assert.ok(r.unplaced.some((e: any) => e.id === "event_firstaffection"));
+  assert.ok(r.sources.A.url.startsWith("https://www.youtube.com/"));
+});
+
+test("next_story walks the route from a chapter or an entry", async () => {
+  const n = (await tool("next_story", { chapter: 26, limit: 2 })).json;
+  assert.deepEqual(n.next.map((e: any) => e.key), ["event_lastkingdom1", "event_lastkingdom2"]);
+  assert.deepEqual(n.missed, []); // nothing reported as read
+  const after = (await tool("next_story", { after: "event_lastkingdom1", done: ["event_lastkingdom2"], limit: 1 })).json;
+  assert.equal(after.next[0].key, "event_dirtybackyard");
+  const m = (await tool("next_story", { chapter: 2, done: ["0", "1"] })).json;
+  assert.deepEqual(m.missed, []); // no events placed before chapter 2
+  // NO CALLER ID sits before chapter 3 but has no script in the fixtures —
+  // missed only suggests what can actually be read
+  assert.deepEqual((await tool("next_story", { chapter: 14, done: ["x"] })).json.missed, []);
+  assert.equal((await tool("next_story", {})).isError, true);
+  assert.equal((await tool("next_story", { after: "nope" })).isError, true);
+});

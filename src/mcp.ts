@@ -494,6 +494,42 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
   );
 
   server.registerTool(
+    "story_route",
+    {
+      title: "Story reading order",
+      description:
+        "The recommended order to read NIKKE's story: main chapters (game numbering, 0-based) with events and side stories slotted where the community places them, each with the sources it rests on (YouTube guides) and notes where they disagree. 'unplaced' lists events no source positions (mostly seasonal). Entries with inData=false have no script here.",
+      inputSchema: z.object({}),
+      annotations: READ_ONLY,
+    },
+    async () => call(api, "story_route", "/api/story/route"),
+  );
+
+  server.registerTool(
+    "next_story",
+    {
+      title: "What to read next",
+      description:
+        "Next stories on the reading route from where the reader is. Give the last main chapter they finished (game numbering: Chapter 0 = the first; -1 = just starting) or the event/side story they just finished, plus what they've already read. Returns next (in order) and missed (events placed earlier on the route that they haven't read — only when done is given). Cite the basis sources when recommending.",
+      inputSchema: z.object({
+        chapter: z.number().int().min(-1).optional().describe("Last main chapter finished, game numbering (0-based)"),
+        after: z.string().optional().describe("Or: the event id/title just finished, e.g. event_lastkingdom2 or 'LAST KINGDOM II'"),
+        done: z.array(z.string()).optional().describe("Event ids (event_*), or main chapter numbers as strings, already read"),
+        limit: z.number().int().min(1).max(20).default(5),
+      }),
+      annotations: READ_ONLY,
+    },
+    async (a) => {
+      if (a.chapter === undefined && !a.after) return text(JSON.stringify({ error: "give chapter or after" }), true);
+      return call(
+        api,
+        "next_story",
+        `/api/story/next${qs({ chapter: a.chapter, after: a.after, done: a.done?.join(","), limit: a.limit })}`,
+      );
+    },
+  );
+
+  server.registerTool(
     "api_get",
     {
       title: "Call another read endpoint",

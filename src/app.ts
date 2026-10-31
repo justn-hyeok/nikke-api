@@ -7,6 +7,7 @@ import { cacheHeaders } from "./cache.js";
 import { cdnUrl } from "./cdn.js";
 import { groupEventScenes } from "./events.js";
 import { buildFamilies } from "./family.js";
+import { ROUTE_COVERAGE_CHAPTER, ROUTE_SOURCES, STORY_ROUTE } from "./story-route.js";
 import { fieldsOf, LOCALES, localize, pickFields } from "./fields.js";
 import { decodeOpenid, gameApi, playerInfo } from "./blabla.js";
 import { createNikkeMcp } from "./mcp.js";
@@ -810,6 +811,74 @@ app.get("/api/nikkes/:id/appearances", async (c) => {
     events: [...events.values()].sort((a, b) => b.lines - a.lines),
     scenes: rows.slice(pg.off, pg.off + pg.lim).map((r) => ({ ...r, ...sceneLabel(idx.get(r.groupId), evOf.get(r.groupId)) })),
   });
+});
+
+// --- story play order (curated in story-route.ts) ---
+
+// main chapter (game number, 0-based) → its scene groupIds (d_main_01_* = Chapter 0)
+const mainChapters = async () => {
+  const m = new Map<number, string[]>();
+  for (const s of await getScenes()) {
+    const hit = s.category === "main" && /^d_main_(\d+)_/.exec(s.groupId);
+    if (!hit) continue;
+    const chapter = Number(hit[1]) - 1;
+    m.set(chapter, [...(m.get(chapter) ?? []), s.groupId]);
+  }
+  return m;
+};
+
+// the curated route resolved against the data, with chapters past the
+// community's coverage appended so the route reaches the latest chapter
+async function storyRoute() {
+  const [chapters, events] = [await mainChapters(), await eventGroups()];
+  const last = Math.max(...chapters.keys());
+  const entries = [...STORY_ROUTE, ...Array.from({ length: Math.max(0, last - ROUTE_COVERAGE_CHAPTER) }, (_, i) => ({ kind: "main" as const, chapter: ROUTE_COVERAGE_CHAPTER + 1 + i }))];
+  return entries.map((e, step) => {
+    if (e.kind === "main") {
+      const scenes = chapters.get(e.chapter) ?? [];
+      return { step, kind: "main" as const, key: `chapter:${e.chapter}`, chapter: e.chapter, title: `메인 ${e.chapter}챕터`, scenes: scenes.length, firstScene: scenes[0] ?? null, inData: scenes.length > 0, ...(e.chapter > ROUTE_COVERAGE_CHAPTER ? { note: "커뮤니티 루트 범위 밖 — 이벤트 배치 정보 없음" } : {}) };
+    }
+    if (e.kind === "event") {
+      const found = events.get(e.id);
+      return { step, kind: "event" as const, key: e.id, id: e.id, title: found?.title ?? e.id, episodes: found?.episodes ?? 0, inData: !!found, basis: e.basis, ...(e.note ? { note: e.note } : {}) };
+    }
+    return { step, kind: e.type, key: `missing:${e.title}`, title: e.title, inData: false, basis: e.basis, note: [e.note, "이 API 데이터에는 스크립트가 없음"].filter(Boolean).join(" · ") };
+  });
+}
+
+app.get("/api/story/route", async (c) => {
+  const entries = await storyRoute();
+  const placed = new Set(entries.map((e) => e.key));
+  const unplaced = [...(await eventGroups()).values()].filter((e) => !placed.has(e.id)).map((e) => ({ id: e.id, title: e.title, episodes: e.episodes }));
+  return c.json({ sources: ROUTE_SOURCES, coverageChapter: ROUTE_COVERAGE_CHAPTER, count: entries.length, entries, unplaced });
+});
+
+// where to go next: after main chapter N (or a given route entry), skipping
+// what was already read; `missed` lists side reads placed before that point
+app.get("/api/story/next", async (c) => {
+  const { chapter, after } = c.req.query();
+  const done = new Set((c.req.query("done") ?? "").split(",").map((s) => s.trim()).filter(Boolean));
+  const limit = Math.min(Number(c.req.query("limit") ?? 5) || 5, 20);
+  const entries = await storyRoute();
+  let pos: number;
+  if (after) {
+    const na = searchNorm(after);
+    pos = entries.findIndex((e) => searchNorm(e.key) === na || searchNorm(e.title) === na);
+    if (pos < 0) return c.json({ error: `"${after}" is not on the route — use an event id or title from /api/story/route` }, 404);
+  } else if (chapter != null && chapter !== "") {
+    const n = Number(chapter);
+    if (!Number.isInteger(n) || n < -1) return c.json({ error: "invalid chapter" }, 400);
+    // -1 = nothing read yet; otherwise the main chapter itself
+    pos = n === -1 ? -1 : entries.findIndex((e) => e.kind === "main" && e.chapter === n);
+    if (n !== -1 && pos < 0) return c.json({ error: `chapter ${n} is not in the data` }, 404);
+  } else {
+    return c.json({ error: "chapter or after required" }, 400);
+  }
+  const isDone = (e: (typeof entries)[number]) => done.has(e.key) || (e.kind === "main" && done.has(String(e.chapter)));
+  const next = entries.slice(pos + 1).filter((e) => !isDone(e)).slice(0, limit);
+  // only meaningful when the reader says what they've read
+  const missed = done.size ? entries.slice(0, pos + 1).filter((e) => e.kind !== "main" && e.inData && !isDone(e)) : [];
+  return c.json({ position: pos >= 0 ? entries[pos] : null, next, missed, sources: ROUTE_SOURCES });
 });
 
 app.get("/api/stages", async (c) => {

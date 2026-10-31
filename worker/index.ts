@@ -10,6 +10,7 @@
 
 const ORIGIN = "https://nikke-api-gunwoos-projects.vercel.app";
 const USER_TTL = 300;
+const USER_SWR = 3600;
 
 interface Env {
   ANALYTICS: {
@@ -87,9 +88,14 @@ export default {
     const res = await fetch(key, { headers: { "if-none-match": "" } });
     if (res.ok) {
       const stored = new Response(res.clone().body, res);
-      // user responses arrive no-store — rewrite TTL for edge storage only
+      // user responses arrive no-store — rewrite TTL for edge storage only;
+      // past USER_TTL the edge serves stale while it revalidates in the
+      // background, so repeat lookups stay fast for up to SWR seconds
       if (userPath)
-        stored.headers.set("Cache-Control", `public, max-age=${USER_TTL}, s-maxage=${USER_TTL}`);
+        stored.headers.set(
+          "Cache-Control",
+          `public, max-age=${USER_TTL}, s-maxage=${USER_TTL}, stale-while-revalidate=${USER_SWR}`,
+        );
       ctx.waitUntil(caches.default.put(key, stored));
     }
     track("MISS");

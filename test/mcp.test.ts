@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 process.env.NIKKE_DATA_DIR = path.join(import.meta.dirname, "fixtures/dist");
 const { default: app } = await import("../src/app.js");
-const { fitJson } = await import("../src/mcp.js");
+const { fitJson, requestOrigin } = await import("../src/mcp.js");
 
 // stateless 2025-era Streamable HTTP: every call is a standalone POST and the
 // JSON-RPC reply comes back as a single SSE message
@@ -102,6 +102,93 @@ test("fitJson cuts the largest array and keeps valid JSON", () => {
   const flat = fitJson(JSON.stringify({ blob: "y".repeat(20_000) }), 10_000);
   assert.equal(flat.isError, true);
   assert.match(JSON.parse(flat.text).error, /too large/);
+});
+
+test("search + fetch follow ChatGPT's connector contract", async () => {
+  const { results } = (await tool("search", { query: "라피" })).json;
+  const hit = results.find((r: any) => r.id === "nikke:1");
+  assert.equal(hit.title, "라피");
+  assert.equal(hit.url, "http://localhost/api/nikkes/1");
+  const doc = (await tool("fetch", { id: "nikke:1" })).json;
+  assert.equal(doc.id, "nikke:1");
+  assert.equal(doc.title, "라피");
+  assert.ok(JSON.parse(doc.text).details.skills);
+  assert.equal((await tool("fetch", { id: "scene:d_main_01_01" })).json.title, "d_main_01_01");
+  assert.equal((await tool("fetch", { id: "bogus" })).isError, true);
+});
+
+test("links follow X-Forwarded-Proto behind a TLS proxy", () => {
+  const req = (h: Record<string, string>) => new Request("http://nikke-mcp.justn.me/mcp", { headers: h });
+  assert.equal(requestOrigin(req({})), "http://nikke-mcp.justn.me");
+  assert.equal(requestOrigin(req({ "x-forwarded-proto": "https" })), "https://nikke-mcp.justn.me");
+  assert.equal(requestOrigin(req({ "x-forwarded-proto": "https, http" })), "https://nikke-mcp.justn.me");
+  assert.equal(requestOrigin(req({ "x-forwarded-proto": "javascript" })), "http://nikke-mcp.justn.me");
+});
+
+test("JSON results also carry structuredContent", async () => {
+  const { result } = await rpc("tools/call", { name: "list_events", arguments: { q: "first" } });
+  assert.equal(result.structuredContent.count, 1);
+});
+
+test("resources: filters, nikke template, id completion", async () => {
+  const init = await rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } });
+  assert.ok(init.result.serverInfo.icons[0].src.startsWith("data:image/svg+xml"));
+  const list = (await rpc("resources/list")).result.resources.map((r: any) => r.uri);
+  assert.ok(list.includes("nikke://filters"));
+  const templates = (await rpc("resources/templates/list")).result.resourceTemplates.map((t: any) => t.uriTemplate);
+  assert.ok(templates.includes("nikke://nikke/{id}"));
+  const filters = JSON.parse((await rpc("resources/read", { uri: "nikke://filters" })).result.contents[0].text);
+  assert.ok(filters.classes.length > 0);
+  const nikke = JSON.parse((await rpc("resources/read", { uri: "nikke://nikke/1" })).result.contents[0].text);
+  assert.equal(nikke.name, "라피");
+  const done = await rpc("completion/complete", {
+    ref: { type: "ref/resource", uri: "nikke://nikke/{id}" },
+    argument: { name: "id", value: "라피" },
+  });
+  assert.deepEqual(done.result.completion.values, ["1"]);
+});
+
+test("search/fetch declare an outputSchema", async () => {
+  const tools = (await rpc("tools/list")).result.tools;
+  for (const n of ["search", "fetch"]) {
+    assert.equal(tools.find((t: any) => t.name === n).outputSchema.type, "object", n);
+  }
+});
+
+// 2026-07-28 clients skip initialize and put the protocol envelope on every
+// request; the same factory has to answer them
+test("mcp serves the 2026-07-28 envelope path", async () => {
+  const modern = async (method: string, params: Record<string, unknown> = {}, name?: string) => {
+    const res = await app.request("/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        "mcp-protocol-version": "2026-07-28",
+        "mcp-method": method,
+        ...(name && { "mcp-name": name }),
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method,
+        params: {
+          ...params,
+          _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {} },
+        },
+      }),
+    });
+    assert.equal(res.status, 200);
+    return (await res.json()).result;
+  };
+  const discover = await modern("server/discover");
+  assert.ok(discover.supportedVersions.includes("2026-07-28"));
+  assert.match(discover.instructions, /Korean only/);
+  assert.ok((await modern("tools/list")).tools.some((t: any) => t.name === "get_nikke"));
+  const found = await modern("tools/call", { name: "search", arguments: { query: "라피" } }, "search");
+  assert.equal(found.structuredContent.results[0].id, "nikke:1");
+  const filters = await modern("resources/read", { uri: "nikke://filters" }, "nikke://filters");
+  assert.ok(JSON.parse(filters.contents[0].text).classes.length > 0);
 });
 
 test("mcp GET is 405 in stateless mode", async () => {

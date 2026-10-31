@@ -1067,6 +1067,7 @@ https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp
 | `search_favorites` / `get_favorite` | `/api/favorites`, `/api/favorites/:id` |
 | `get_user_profile` / `get_user_nikkes` / `get_user_nikke` | `/api/user/*` (서버에 BlablaLink 계정 필요, 인스턴스당 분당 30회) |
 | `api_get` | 전용 도구가 없는 조회 (스테이지·코스튬·장비·큐브·아바타·필터 값). `/api/user`·`/api/tables`는 막혀 있음 |
+| `search` / `fetch` | 통합 검색 / id로 문서 가져오기 (ChatGPT 커넥터 규격) |
 
 모든 도구는 기본 `lang=ko`로 응답합니다. 60,000자를 넘는 응답은 목록 뒤쪽을 덜어내고 `truncated`(`nextOffset` 포함)를 붙여 돌려줍니다. 클라이언트별 연결 방법은 [docs/mcp.md](docs/mcp.md)를 보세요.
 

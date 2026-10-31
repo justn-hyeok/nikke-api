@@ -8,6 +8,7 @@ https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp
 
 - 인증이 없습니다. URL만 넣으면 됩니다.
 - 세션을 저장하지 않는 Streamable HTTP 방식입니다. SSE 전용 주소는 따로 없습니다.
+- 2025년 프로토콜(`initialize` 방식)과 2026-07-28 프로토콜(요청마다 `_meta` 봉투를 붙이는 방식)을 같은 주소에서 모두 받습니다.
 - URL은 반드시 `/mcp`로 끝나야 합니다. 끝에 `/`를 붙이지 마세요.
 
 > 각 서비스의 메뉴 이름과 위치는 자주 바뀝니다. 아래 경로가 화면과 다르면 "커넥터", "MCP", "개발자 모드" 같은 이름의 메뉴를 찾아보세요.
@@ -135,8 +136,10 @@ curl -X POST https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp \
 | `get_user_profile` | 유저 프로필 (BlablaLink 공유 링크로 조회) |
 | `get_user_nikkes` / `get_user_nikke` | 유저 보유 니케 목록 / 한 캐릭터의 육성 상태 |
 | `api_get` | 전용 도구가 없는 조회: 스테이지, 코스튬, 장비, 큐브, 아바타, 필터 값 (`/api/user`·`/api/tables`는 막혀 있음) |
+| `search` / `fetch` | 캐릭터·이벤트·씬·소장품 통합 검색 / id로 문서 가져오기 (ChatGPT 커넥터 규격, id 형식 `nikke:201601`·`event:event_claymore`) |
 
 - 모든 도구는 기본으로 한국어(`lang=ko`)로 응답합니다. 다른 언어는 `lang`에 `en`·`ja`·`zh-TW`를 넣습니다.
+- 리소스도 제공합니다: `nikke://filters`(필터 값 전체), `nikke://nikke/{id}`(캐릭터 상세, id 자동완성 지원). Claude에서 컨텍스트로 첨부할 때 씁니다.
 - 필터는 영문 값만 받습니다. 한글 대응은 각 파라미터 설명에 있습니다 (예: 철갑 = `Iron`, 화력형 = `Attacker`).
 - 응답이 60,000자를 넘으면 목록 뒤쪽을 덜어내고 `truncated`(`returned`·`omitted`·`nextOffset`)를 붙여 돌려줍니다. 나머지는 `offset`으로 이어서 받습니다.
 - 유저 도구는 공유 계정으로 게임 API를 실시간 호출하므로 서버 인스턴스당 분당 30회로 제한됩니다. 전체 로스터 조회(`/api/user/:blablaid/roster`)는 너무 무거워 MCP 도구로 제공하지 않습니다.

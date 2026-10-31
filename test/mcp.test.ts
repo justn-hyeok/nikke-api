@@ -199,6 +199,7 @@ test("plain GET /mcp explains how to connect, with this server's URL", async () 
   const res = await app.request("http://api.example/mcp", { headers: { "x-forwarded-proto": "https" } });
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type")!, /text\/markdown/);
+  assert.equal(res.headers.get("cache-control"), "no-store"); // the edge must not cache it
   const t = await res.text();
   assert.match(t, /MCP 서버 URL: https:\/\/api\.example\/mcp/);
   assert.match(t, /claude mcp add --transport http nikke https:\/\/api\.example\/mcp/);

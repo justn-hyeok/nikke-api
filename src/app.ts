@@ -1621,10 +1621,7 @@ const listTools = () =>
 // the transport's own 405 for GET in stateless mode
 app.get("/mcp", async (c, next) => {
   if ((c.req.header("accept") ?? "").includes("text/event-stream")) return next();
-  // never cached: the edge keys its cache on the URL alone, and an MCP client's
-  // SSE GET to the same URL must keep getting the transport's answer
-  c.header("Cache-Control", "no-store");
-  c.header("Vary", "Accept");
+  c.header("Vary", "Accept"); // no-store comes from cacheHeaders (see cache.ts)
   c.header("Link", '</llms.txt>; rel="describedby"');
   return c.body(mcpGuide(requestOrigin(c.req.raw), await listTools()), 200, { "Content-Type": "text/markdown; charset=utf-8" });
 });

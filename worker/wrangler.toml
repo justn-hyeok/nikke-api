@@ -2,3 +2,7 @@ name = "nikke-api-edge"
 main = "index.ts"
 compatibility_date = "2026-10-30"
 workers_dev = true
+
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "nikke_api_requests"

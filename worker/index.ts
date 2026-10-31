@@ -9,7 +9,7 @@
 // Vercel hobby keeps no request history, this is the traffic breakdown.
 
 const ORIGIN = "https://nikke-api-gunwoos-projects.vercel.app";
-const USER_TTL = 1800;
+const USER_TTL = 300;
 const USER_SWR = 86400;
 const AREA_KV_TTL = 30 * 86400;
 

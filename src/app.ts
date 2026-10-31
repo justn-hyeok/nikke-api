@@ -844,7 +844,8 @@ async function storyRoute() {
       const note = e.chapter > ROUTE_COVERAGE_CHAPTER ? "가이드 범위 밖 — 이벤트 배치 정보 없음" : "note" in e ? e.note : undefined;
       return { step, kind: "main" as const, key: `chapter:${e.chapter}`, ids: [] as string[], chapter: e.chapter, title: `메인 ${e.chapter}챕터`, required: true, scenes: sc.length, firstScene: sc[0] ?? null, inData: sc.length > 0, ...(note ? { note } : {}) };
     }
-    const found = e.ids.filter((id) => events.has(id));
+    // bonus episodes ship as their own "<id>_bNN" events — they belong to the same entry
+    const found = e.ids.flatMap((id) => [id, ...[...events.keys()].filter((k) => k.startsWith(`${id}_b`) && /_b\d+$/.test(k))]).filter((id) => events.has(id));
     const affectionScenes = e.nikke ? scenes.filter((s) => s.category === "attractive" && s.nikke === e.nikke).length : 0;
     const inData = e.kind === "affection" ? affectionScenes > 0 : found.length > 0;
     return {

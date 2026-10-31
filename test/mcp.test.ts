@@ -54,7 +54,7 @@ test("mcp tools wrap the REST routes", async () => {
   const list = await tool("search_nikkes", { element: "Fire" });
   assert.equal(list.json.characters[0].name, "라피"); // lang defaults to ko
   assert.equal(list.json.characters[0].costumes, undefined); // list is trimmed
-  assert.equal((await tool("list_events", { q: "first" })).json.count, 1);
+  assert.equal((await tool("list_events", { q: "first" })).json.count, 2); // FIRST AFFECTION + its bonus episode
   assert.ok((await tool("api_get", { path: "/api/meta/filters" })).json.classes.length > 0);
 });
 
@@ -127,7 +127,7 @@ test("links follow X-Forwarded-Proto behind a TLS proxy", () => {
 
 test("JSON results also carry structuredContent", async () => {
   const { result } = await rpc("tools/call", { name: "list_events", arguments: { q: "first" } });
-  assert.equal(result.structuredContent.count, 1);
+  assert.equal(result.structuredContent.count, 2);
 });
 
 test("resources: filters, nikke template, id completion", async () => {
@@ -255,9 +255,12 @@ test("story_route resolves the curated order against the data", async () => {
   assert.equal(lk.inData, false); // fixtures have no Last Kingdom scenes
   assert.match(lk.note, /스크립트가 없음/);
   const fa = r.entries.find((e: any) => e.title === "FIRST AFFECTION");
-  assert.deepEqual([fa.inData, fa.required, fa.importance, fa.episodes], [true, false, "low", 2]);
+  assert.deepEqual([fa.inData, fa.required, fa.importance, fa.episodes], [true, false, "low", 3]); // + bonus episode
   assert.ok(!r.unplaced.some((e: any) => e.id === "event_firstaffection")); // placed now
   assert.ok(r.unplaced.some((e: any) => e.id === "event_claymore"));
+  // a bonus episode event joins its parent's entry instead of "unplaced"
+  assert.ok(!r.unplaced.some((e: any) => e.id === "event_firstaffection_b01"));
+  assert.deepEqual(fa.ids, ["event_firstaffection", "event_firstaffection_b01"]);
   assert.ok(r.sources.S.url.startsWith("https://ssissun.github.io/"));
 });
 

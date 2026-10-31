@@ -44,7 +44,7 @@ Object.assign(process.env, {
   DEMO_ALLOWED_ORIGIN: "https://docs.example",
   DEMO_PER_IP_PER_MIN: "2",
 });
-const { createDemoServer, config, validateBody, ipBucket } = await import("./server.mjs");
+const { createDemoServer, config, validateBody, ipBucket, plain } = await import("./server.mjs");
 const port = await listen(createDemoServer(config()));
 
 // node:http so the Host header can be set (fetch forbids it)
@@ -115,6 +115,11 @@ test("per-IP minute quota returns 429 with retryAfter", async () => {
   assert.ok(r.data.retryAfter > 0);
   // another IP is unaffected
   assert.equal((await ask("4", { "cf-connecting-ip": "192.0.2.51" })).status, 200);
+});
+
+test("plain() strips markdown the widget can't render", () => {
+  assert.equal(plain("## 제목\n1. **메인 31챕터** (15화) `next_story`\n\n\n끝"), "제목\n1. 메인 31챕터 (15화) next_story\n\n끝");
+  assert.equal(plain("2 * 3 = 6"), "2 * 3 = 6");
 });
 
 test("IPv6 addresses bucket by /64", () => {

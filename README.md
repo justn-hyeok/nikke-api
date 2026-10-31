@@ -49,6 +49,10 @@ BlablaLink(공식 위키 도구)의 CDN 데이터를 매일 동기화합니다. 
 | 화자 정보 | 화자 코드·이름 + 아이콘 이미지 URL (NPC 포함) |
 | **씬 보이스** | 풀보이스 챕터·이벤트는 대사별 한국어 음성 mp3 URL 제공, 보이스 없는 라인은 `voice: null` |
 | 호감도 씬 | 대상 니케·필요 호감도 레벨 + 배경/BGM 리소스 코드 |
+| **대사 검색** | 전체 대본의 대사 본문·화자 검색, 캐릭터별 등장 씬·이벤트 순위, 이벤트 대본 통째로 읽기 |
+| **감상 순서** | 메인 챕터 사이에 이벤트·사이드·호감도 스토리를 배치한 순서(커뮤니티 가이드 기준, 50챕터까지)와 다음에 볼 스토리 추천 |
+
+이격(`라피 : 레드 후드` 등)은 원본과 묶여 있어서 `?family=1`로 모든 버전을 함께 검색할 수 있습니다. 자세한 규칙은 [API.md](API.md#이격-연결)에 있습니다.
 
 ### 소장품 — 33종
 
@@ -98,11 +102,16 @@ GET /api/user/<blablaid>/nikke/아니스               # 부분 일치 → 매�
 | 엔드포인트 | 설명 |
 |------------|------|
 | `GET /api/nikkes` | 캐릭터 목록 — `?q=` 이름 검색(전 언어 부분 일치), `?element=` `?class=` `?burst=` `?corporation=` `?weapon=` `?rarity=` 필터 (AND 결합), `?limit=`/`?offset=`/`?page=` 페이지네이션 (미지정 시 전체, 최대 500 — `count`는 잘라내기 전 전체 개수) |
-| `GET /api/nikkes/:id` | 캐릭터 상세 — 스킬/스탯/배경/CV/보이스 등 `details` 포함. `:id`는 캐릭터 ID·resourceId·이름(부분 일치) 모두 가능 |
+| `GET /api/nikkes/:id` | 캐릭터 상세 — 스킬/스탯/배경/CV/보이스 등 `details` 포함. `:id`는 캐릭터 ID·resourceId·이름(부분 일치) 모두 가능. `family`(원본·이격 목록) 포함 |
+| `GET /api/nikkes/:id/appearances` | 캐릭터가 대사를 하는 씬(원본+이격 합산)과 이벤트별 순위 — `?category=` `?limit=`/`?offset=`/`?page=` |
 | `GET /api/scenes` | 씬 목록 — `?category=` `?nikke=` `?q=` `?limit=`/`?offset=`/`?page=` |
 | `GET /api/scenes/:groupId` | 씬 대본 — 대사별 화자/아이콘/보이스 |
 | `GET /api/events` | 스토리 이벤트 목록 — `event_*` 씬 그룹 묶음, `?q=` `?limit=`/`?offset=`/`?page=` |
 | `GET /api/events/:id` | 이벤트 상세 — 에피소드별 씬 목록 |
+| `GET /api/events/:id/script` | 이벤트 대본 전체 — 에피소드 순서대로 `화자: 대사`, 에피소드 단위 페이지네이션 |
+| `GET /api/lines` | 대사 검색 — `?q=`(본문) `?speaker=`(화자) `?family=` `?category=` `?limit=`/`?offset=`/`?page=` |
+| `GET /api/story/route` | 스토리 감상 순서 — 필수/선택·중요도·메모, 출처 포함 |
+| `GET /api/story/next` | 다음에 볼 스토리 — `?chapter=`(끝낸 메인 챕터) 또는 `?after=`, `?done=` `?required=` |
 | `GET /api/stages` | 캠페인 스테이지 목록 — `?chapter=` `?mode=` `?q=` `?limit=`/`?offset=`/`?page=` |
 | `GET /api/stages/:id` | 스테이지 상세 — 권장 전투력·시나리오 키 |
 | `GET /api/costumes` | 코스튬 목록 — `?q=` `?grade=` `?nikke=` `?limit=`/`?offset=`/`?page=` |

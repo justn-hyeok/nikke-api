@@ -20,6 +20,11 @@
 - [GET /api/scenes/:groupId](#get-apiscenesgroupid) — 씬 대본 (한국어)
 - [GET /api/events](#get-apievents) — 스토리 이벤트 목록
 - [GET /api/events/:id](#get-apieventsid) — 이벤트 상세 (에피소드 씬 목록)
+- [GET /api/events/:id/script](#get-apieventsidscript) — 이벤트 전체 대본 (에피소드별)
+- [GET /api/lines](#get-apilines) — 대사 검색 (본문·화자)
+- [GET /api/nikkes/:id/appearances](#get-apinikkesidappearances) — 캐릭터 등장 씬·이벤트
+- [GET /api/story/route](#get-apistoryroute) — 스토리 감상 순서
+- [GET /api/story/next](#get-apistorynext) — 다음에 볼 스토리 추천
 - [GET /api/stages](#get-apistages) — 캠페인 스테이지 목록
 - [GET /api/stages/:id](#get-apistagesid) — 스테이지 상세
 - [GET /api/costumes](#get-apicostumes) — 코스튬 목록
@@ -56,6 +61,7 @@
 | 파라미터 | 설명 | 예시 |
 |----------|------|------|
 | `q` | 이름 부분 일치 검색 (전 언어 대상) | `?q=아니스` |
+| `family` | `1`이면 검색된 캐릭터의 다른 버전(원본·이격)까지 함께 반환 — 아래 [이격 연결](#이격-연결) | `?q=레드 후드&family=1` |
 | `element` | 속성 | `Electronic`, `Iron`, `Fire`, `Wind`, `Water` |
 | `class` | 클래스 | `Attacker`, `Defender`, `Supporter` |
 | `burst` | 버스트 스텝 | `I`, `II`, `III`, `All` |
@@ -294,6 +300,7 @@ GET /api/tables/CharacterLevelTable.json
 | `q` | 그룹 ID·씬 이름 부분 일치 | `?q=발신자` |
 | `category` | 카테고리 필터 | `main` / `event` / `sudden` / `attractive` |
 | `nikke` | 호감도 씬 대상 니케 이름 부분 일치 | `?nikke=아니스` |
+| `family` | `1`이면 `nikke`를 그 캐릭터의 모든 버전(원본·이격) 이름과 정확히 매칭 | `?nikke=라피 : 레드 후드&family=1` |
 | `limit` | 반환 개수 제한 (최대 500) | `?limit=50` |
 | `page` | 페이지 번호 (1부터, `offset` 대신 사용 — page와 offset 동시 지정 시 page 우선) | `?page=2` |
 | `offset` | 시작 위치 (페이지네이션) | `?offset=50` |
@@ -425,6 +432,117 @@ GET /api/events/event_nonsensered
   ]
 }
 ```
+
+## GET /api/events/:id/script
+
+이벤트 하나의 대본 전체를 에피소드 순서대로 반환합니다. 대사는 `"화자: 대사"` 문자열이고 내레이션은 대사만 들어갑니다. 에피소드 단위로 `offset`/`limit`/`page`를 받습니다.
+
+```
+GET /api/events/event_BunnyX777/script?limit=1
+```
+
+```json
+{
+  "id": "event_BunnyX777",
+  "title": "BUNNY X 777",
+  "count": 15,
+  "offset": 0,
+  "episodes": [
+    {
+      "groupId": "event_BunnyX777_01_e",
+      "name": "토끼들의 부탁 : B",
+      "lines": ["쌍둥이들의 부탁을 받고 코인 러시의 게임 마스터, 루주를 찾아갔다.", "루주: 어서 오세요, 플레이어님."]
+    }
+  ]
+}
+```
+
+## GET /api/lines
+
+모든 씬(메인·이벤트·돌발·호감도)의 대사를 검색합니다. `q`와 `speaker` 중 하나는 필요합니다. 처음 호출할 때 대본 전체를 한 번 읽어 메모리에 올립니다.
+
+| 파라미터 | 설명 | 예시 |
+|----------|------|------|
+| `q` | 대사 본문 부분 일치 (문장부호·공백 무시) | `?q=방주의 영웅` |
+| `speaker` | 화자 이름 정확히 일치 (한국어) | `?speaker=라피` |
+| `family` | `1`이면 `speaker`를 그 캐릭터의 모든 버전 이름으로 확장 | `?speaker=라피 : 레드 후드&family=1` |
+| `category` | 씬 카테고리 | `main` / `event` / `sudden` / `attractive` |
+| `limit` / `page` / `offset` | 페이지네이션 | `?limit=20` |
+
+```json
+{
+  "count": 5,
+  "offset": 0,
+  "lines": [
+    {
+      "groupId": "d_main_34_05",
+      "line": 93,
+      "speaker": "네온",
+      "text": "스승님은 지금 방주의 희망, 방주의 영웅, 방주 최강의 지휘관으로 불리고 있잖아요?",
+      "scene": { "name": "계승의 의미", "category": "main" }
+    }
+  ]
+}
+```
+
+이벤트 씬이면 `scene.event`(`id`·`title`)가 붙습니다. `line`은 씬 대본 안의 줄 번호(0부터)입니다.
+
+## GET /api/nikkes/:id/appearances
+
+캐릭터가 대사를 하는 모든 씬을 대사 수가 많은 순으로 반환합니다. 원본과 이격을 한 캐릭터로 묶어 셉니다. `events`는 씬을 이벤트 단위로 합친 순위입니다. `:id`는 `/api/nikkes/:id`처럼 id·resourceId·이름을 받습니다.
+
+| 파라미터 | 설명 |
+|----------|------|
+| `category` | 씬 카테고리 필터 |
+| `limit` / `page` / `offset` | `scenes`의 페이지네이션 (`events`는 항상 전체) |
+
+```json
+{
+  "family": { "base": "아니스", "members": [{ "id": 301201, "name": { "ko": "아니스" } }] },
+  "count": 752,
+  "offset": 0,
+  "events": [{ "id": "event_staranis1", "title": "STAR ANIS I", "scenes": 13, "lines": 522 }],
+  "scenes": [
+    { "groupId": "event_staranis1_05_e", "lines": 107, "name": "플라스틱 별 : B", "category": "event", "event": { "id": "event_staranis1", "title": "STAR ANIS I" } }
+  ]
+}
+```
+
+## GET /api/story/route
+
+메인 챕터 사이에 이벤트·사이드 스토리·호감도 스토리를 끼워 넣은 감상 순서입니다. 순서와 필수/선택 구분은 아카라이브 니케 채널에서 쓰이는 커뮤니티 가이드([ssissun.github.io/nikke-storyline](https://ssissun.github.io/nikke-storyline/))를 따르고, 다른 가이드와 배치가 갈리는 곳은 `note`에 적었습니다. 큐레이션 데이터는 [`src/story-route.ts`](src/story-route.ts)에 있습니다.
+
+- 챕터 번호는 게임 기준(0부터)입니다. 씬 groupId는 1부터라서 0챕터가 `d_main_01_*`입니다.
+- 항목 하나가 여러 이벤트 id를 묶을 수 있습니다 (예: `OVER ZONE` → `event_overzone1`, `event_overzone2`).
+- `inData: false`인 항목은 이 API에 대본이 없습니다 (사이드 스토리, 아카이브에 없는 최신 이벤트).
+- `unplaced`는 가이드가 배치하지 않은 이벤트(주로 시즌 이벤트)입니다.
+
+```json
+{
+  "sources": { "S": { "title": "NIKKE 스토리 감상 순서 가이드", "url": "https://ssissun.github.io/nikke-storyline/" } },
+  "coverageChapter": 50,
+  "count": 87,
+  "entries": [
+    { "step": 0, "kind": "main", "key": "chapter:0", "chapter": 0, "title": "메인 0챕터", "required": true, "scenes": 12, "firstScene": "d_main_01_01_e", "inData": true },
+    { "step": 21, "kind": "event", "key": "event_overzone1", "ids": ["event_overzone1", "event_overzone2"], "title": "OVER ZONE", "required": true, "episodes": 27, "inData": true, "note": "0.5주년. ..." }
+  ],
+  "unplaced": [{ "id": "event_BunnyX777", "title": "BUNNY X 777", "episodes": 15 }]
+}
+```
+
+## GET /api/story/next
+
+감상 순서에서 다음에 볼 스토리를 돌려줍니다. `chapter`나 `after` 중 하나가 필요합니다.
+
+| 파라미터 | 설명 | 예시 |
+|----------|------|------|
+| `chapter` | 마지막으로 끝낸 메인 챕터 (게임 기준, `-1`은 처음부터) | `?chapter=24` |
+| `after` | 방금 끝낸 항목 — 제목·이벤트 id·챕터 번호 | `?after=LAST KINGDOM` |
+| `done` | 이미 본 것 (콤마 구분, 제목·이벤트 id·챕터 번호) | `?done=RED ASH,event_overzone1` |
+| `required` | `1`이면 선택 스토리 제외 | `?required=1` |
+| `limit` | 개수 (기본 5, 최대 20) | `?limit=10` |
+
+`next`는 순서대로 다음 항목들이고, `missed`는 `done`을 줬을 때만 채워지는 "현재 위치보다 앞에 있는데 안 본 필수 스토리"입니다.
 
 ## GET /api/stages
 
@@ -1066,10 +1184,23 @@ https://nikke-api-gunwoos-projects.vercel.app/mcp
 | `list_events` / `get_event` | `/api/events`, `/api/events/:id` |
 | `search_favorites` / `get_favorite` | `/api/favorites`, `/api/favorites/:id` |
 | `get_user_profile` / `get_user_nikkes` / `get_user_nikke` | `/api/user/*` (서버에 BlablaLink 계정 필요, 인스턴스당 분당 30회) |
+| `read_event` | `/api/events/:id/script` |
+| `search_lines` | `/api/lines` |
+| `nikke_appearances` | `/api/nikkes/:id/appearances` |
+| `compare_nikkes` | `/api/nikkes/:id`를 2–4명에 대해 호출해 한 응답으로 묶음 |
+| `story_route` / `next_story` | `/api/story/route`, `/api/story/next` |
 | `api_get` | 전용 도구가 없는 조회 (스테이지·코스튬·장비·큐브·아바타·필터 값). `/api/user`·`/api/tables`는 막혀 있음 |
 | `search` / `fetch` | 통합 검색 / id로 문서 가져오기 (ChatGPT 커넥터 규격) |
 
-모든 도구는 기본 `lang=ko`로 응답합니다. 60,000자를 넘는 응답은 목록 뒤쪽을 덜어내고 `truncated`(`nextOffset` 포함)를 붙여 돌려줍니다. 클라이언트별 연결 방법은 [docs/mcp.md](docs/mcp.md)를 보세요.
+모든 도구는 기본 `lang=ko`로 응답합니다. 이름 검색·호감도 씬·대사 검색은 기본으로 이격까지 묶어서 찾습니다(`family`, 끄려면 `false`). 60,000자를 넘는 응답은 목록 뒤쪽을 덜어내고 `truncated`(`nextOffset` 포함)를 붙여 돌려줍니다. 클라이언트별 연결 방법은 [docs/mcp.md](docs/mcp.md)를 보세요.
+
+## 이격 연결
+
+데이터에는 이격(같은 캐릭터의 다른 버전)과 원본을 잇는 필드가 없어서, 모든 언어에서 지키는 이름 규칙 `<원본> : <수식어>`(예: `라피 : 레드 후드`, `Rapi: Red Hood`)로 묶습니다. 규칙에서 벗어나는 경우는 [`src/family.ts`](src/family.ts)의 표에 둡니다 (현재 `모더니아` → `마리안`).
+
+- `/api/nikkes/:id` 상세에 `family`(`base`, `members[]`)가 붙습니다.
+- `/api/nikkes`·`/api/scenes`·`/api/lines`는 `family=1`일 때 이 묶음으로 검색합니다. 기본 동작은 그대로입니다.
+- `레드 후드`처럼 이름이 비슷해도 별개 캐릭터는 묶지 않습니다.
 
 ## 공통: 필드 선택 `?fields=`
 

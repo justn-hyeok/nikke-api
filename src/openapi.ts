@@ -144,6 +144,7 @@ export const openapi = {
         summary: "캐릭터 목록",
         parameters: [
           { name: "q", in: "query", schema: { type: "string" }, description: "이름 검색 (전 언어 부분 일치)" },
+          { name: "family", in: "query", schema: { type: "string", enum: ["1", "true"] }, description: "q로 찾은 캐릭터의 다른 버전(원본·이격)까지 함께" },
           { name: "element", in: "query", schema: { type: "string" } },
           { name: "class", in: "query", schema: { type: "string" } },
           { name: "burst", in: "query", schema: { type: "string" } },
@@ -180,6 +181,7 @@ export const openapi = {
         parameters: [
           { name: "category", in: "query", schema: { type: "string", enum: ["main", "event", "sudden", "attractive"] } },
           { name: "nikke", in: "query", schema: { type: "string" }, description: "호감도 씬 대상 니케" },
+          { name: "family", in: "query", schema: { type: "string", enum: ["1", "true"] }, description: "원본·이격까지 함께 (nikke를 모든 버전 이름과 정확히 매칭)" },
           { name: "q", in: "query", schema: { type: "string" }, description: "씬 제목 검색" },
           { name: "page", in: "query", schema: { type: "integer", minimum: 1 }, description: "페이지 번호 (1부터 — offset 대신 사용, 미지정 limit 시 페이지 크기 50)" },
           { name: "limit", in: "query", schema: { type: "integer", maximum: 500 }, description: "최대 500, 미지정 시 전체" },
@@ -207,6 +209,70 @@ export const openapi = {
         summary: "이벤트 상세 — 에피소드별 씬 목록 (groupId·제목·대사 수)",
         parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" }, example: "event_firstaffection" }],
         responses: { "200": { description: "이벤트 상세" }, "404": { description: "없음" } },
+      },
+    },
+    "/api/events/{id}/script": {
+      get: {
+        tags: ["scenes"],
+        summary: "이벤트 전체 대본 — 에피소드 순서대로, 대사는 '화자: 대사'",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string" }, example: "event_firstaffection" },
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1 }, description: "에피소드 페이지 번호" },
+          { name: "limit", in: "query", schema: { type: "integer", maximum: 500 }, description: "에피소드 수" },
+          { name: "offset", in: "query", schema: { type: "integer", default: 0 } },
+        ],
+        responses: { "200": { description: "에피소드별 대본 — count는 전체 에피소드 수" }, "404": { description: "없음" } },
+      },
+    },
+    "/api/lines": {
+      get: {
+        tags: ["scenes"],
+        summary: "대사 검색 — 전체 스토리의 대사 본문·화자 (q 또는 speaker 필수)",
+        parameters: [
+          { name: "q", in: "query", schema: { type: "string" }, description: "대사 본문 부분 일치 (문장부호·공백 무시)" },
+          { name: "speaker", in: "query", schema: { type: "string" }, description: "화자 이름 (한국어, 정확히 일치)" },
+          { name: "family", in: "query", schema: { type: "string", enum: ["1", "true"] }, description: "화자를 원본·이격 전체로 확장" },
+          { name: "category", in: "query", schema: { type: "string", enum: ["main", "event", "sudden", "attractive"] } },
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
+          { name: "limit", in: "query", schema: { type: "integer", maximum: 500 } },
+          { name: "offset", in: "query", schema: { type: "integer", default: 0 } },
+        ],
+        responses: { "200": { description: "대사 목록 — 씬·이벤트 표시 포함" }, "400": { description: "q·speaker 둘 다 없음" } },
+      },
+    },
+    "/api/nikkes/{id}/appearances": {
+      get: {
+        tags: ["scenes"],
+        summary: "캐릭터 등장 씬 — 원본·이격 합산, 대사 수 순, 이벤트별 집계 포함",
+        parameters: [
+          { name: "id", in: "path", required: true, schema: { type: "string" }, example: "아니스", description: "캐릭터 id / resourceId / 이름" },
+          { name: "category", in: "query", schema: { type: "string", enum: ["main", "event", "sudden", "attractive"] } },
+          { name: "page", in: "query", schema: { type: "integer", minimum: 1 } },
+          { name: "limit", in: "query", schema: { type: "integer", maximum: 500 } },
+          { name: "offset", in: "query", schema: { type: "integer", default: 0 } },
+        ],
+        responses: { "200": { description: "등장 씬과 이벤트 순위" }, "404": { description: "없음" } },
+      },
+    },
+    "/api/story/route": {
+      get: {
+        tags: ["scenes"],
+        summary: "스토리 감상 순서 — 메인 챕터 사이에 이벤트·사이드·호감도 스토리 배치 (커뮤니티 가이드 기준)",
+        responses: { "200": { description: "entries(순서)·unplaced(배치 안 된 이벤트)·sources" } },
+      },
+    },
+    "/api/story/next": {
+      get: {
+        tags: ["scenes"],
+        summary: "다음에 볼 스토리 — chapter 또는 after 필수",
+        parameters: [
+          { name: "chapter", in: "query", schema: { type: "integer", minimum: -1 }, description: "마지막으로 끝낸 메인 챕터 (게임 기준, -1은 처음부터)" },
+          { name: "after", in: "query", schema: { type: "string" }, description: "방금 끝낸 항목 (제목·이벤트 id·챕터 번호)" },
+          { name: "done", in: "query", schema: { type: "string" }, description: "이미 본 것, 콤마 구분" },
+          { name: "required", in: "query", schema: { type: "string", enum: ["1", "true"] }, description: "선택 스토리 제외" },
+          { name: "limit", in: "query", schema: { type: "integer", maximum: 20, default: 5 } },
+        ],
+        responses: { "200": { description: "next·missed·position" }, "400": { description: "chapter·after 없음" }, "404": { description: "루트에 없는 항목" } },
       },
     },
     "/api/scenes/{groupId}": {

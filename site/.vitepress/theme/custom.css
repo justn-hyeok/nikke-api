@@ -1,0 +1,67 @@
+:root {
+  --vp-c-brand-1: #d6455f;
+  --vp-c-brand-2: #e0576f;
+  --vp-c-brand-3: #c03a52;
+  --vp-c-brand-soft: rgba(214, 69, 95, 0.16);
+}
+
+.mcp-url {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 640px;
+  margin: 16px 0;
+}
+.mcp-url code {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--vp-code-bg);
+  font-size: 14px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.mcp-url button {
+  flex-shrink: 0;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
+  font-size: 13px;
+  cursor: pointer;
+}
+.mcp-url button:hover {
+  border-color: var(--vp-c-brand-1);
+  color: var(--vp-c-brand-1);
+}
+
+.live-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 20px 0;
+}
+.live-stats .stat b {
+  display: block;
+  font-size: 22px;
+  color: var(--vp-c-brand-1);
+}
+.live-stats .stat span {
+  font-size: 12px;
+  color: var(--vp-c-text-2);
+}
+
+
+
+.api-page-head {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 24px 0;
+}
+.api-reference-embed {
+  margin: 0;
+}
+.api-reference-embed .scalar-app {
+  min-height: 80vh;
+}

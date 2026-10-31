@@ -15,7 +15,21 @@ interface Env {
   ANALYTICS: {
     writeDataPoint(p: { blobs: string[]; doubles: number[]; indexes: string[] }): void;
   };
+  RATE_LIMITER: { limit(opts: { key: string }): Promise<{ success: boolean }> };
 }
+
+// only origin-bound requests consume the limit — cache hits cost us nothing,
+// but bypass tricks (junk params, ?refresh) can't drain Vercel's quota
+const throttled = async (env: Env, request: Request) => {
+  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+  const { success } = await env.RATE_LIMITER.limit({ key: ip });
+  return success
+    ? null
+    : new Response(JSON.stringify({ error: "rate limited — retry shortly" }), {
+        status: 429,
+        headers: { "content-type": "application/json", "retry-after": "60" },
+      });
+};
 
 // group by route family — /api/user/<openid>/nikke -> /api/user
 const pathGroup = (pathname: string) => pathname.split("/").slice(0, 3).join("/") || "/";
@@ -45,6 +59,8 @@ export default {
       });
 
     if (request.method !== "GET" && request.method !== "HEAD") {
+      const denied = await throttled(env, request);
+      if (denied) return denied;
       const res = await fetch(ORIGIN + url.pathname + url.search, request);
       track("PASS");
       const out = new Response(res.body, res);
@@ -66,6 +82,8 @@ export default {
     }
 
     // a stale If-None-Match can't match the origin's version-derived ETag
+    const denied = await throttled(env, request);
+    if (denied) return denied;
     const res = await fetch(key, { headers: { "if-none-match": "" } });
     if (res.ok) {
       const stored = new Response(res.clone().body, res);

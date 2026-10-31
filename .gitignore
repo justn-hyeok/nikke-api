@@ -10,3 +10,4 @@ server/
 .env
 .env.*
 .vercel/
+worker/.wrangler/

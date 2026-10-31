@@ -10,10 +10,19 @@ interface NextEntry {
   note?: string;
 }
 
+const MIN_CHAPTER = -1; // -1 = 아직 시작 안 함
+const MAX_CHAPTER = 50;
+
 const chapter = ref<number>(20);
 const entries = ref<NextEntry[]>([]);
 const failed = ref(false);
 const loading = ref(false);
+const loadedFor = ref<number | null>(null);
+
+const options = Array.from({ length: MAX_CHAPTER - MIN_CHAPTER + 1 }, (_, i) => {
+  const n = MIN_CHAPTER + i;
+  return { value: n, label: n < 0 ? "아직 시작 안 함" : `메인 ${n}챕터` };
+});
 
 const importanceLabel: Record<string, string> = {
   high: "높음",
@@ -21,13 +30,15 @@ const importanceLabel: Record<string, string> = {
   low: "낮음",
 };
 
+let reqSeq = 0;
 const load = async () => {
   const n = Number(chapter.value);
-  if (!Number.isInteger(n) || n < -1 || n > 50) {
+  if (!Number.isInteger(n) || n < MIN_CHAPTER || n > MAX_CHAPTER) {
     entries.value = [];
     failed.value = true;
     return;
   }
+  const seq = ++reqSeq;
   loading.value = true;
   failed.value = false;
   try {
@@ -35,13 +46,23 @@ const load = async () => {
     if (!res.ok) throw new Error(String(res.status));
     const data = await res.json();
     if (!Array.isArray(data?.next)) throw new Error("no next");
+    if (seq !== reqSeq) return; // a newer request superseded this one
     entries.value = data.next;
+    loadedFor.value = n;
   } catch {
+    if (seq !== reqSeq) return;
     entries.value = [];
     failed.value = true;
   } finally {
-    loading.value = false;
+    if (seq === reqSeq) loading.value = false;
   }
+};
+
+const step = (delta: number) => {
+  const next = Math.min(MAX_CHAPTER, Math.max(MIN_CHAPTER, chapter.value + delta));
+  if (next === chapter.value) return;
+  chapter.value = next;
+  void load();
 };
 
 onMounted(load);
@@ -50,36 +71,79 @@ onMounted(load);
 <template>
   <div class="story-next">
     <div class="story-next-controls">
-      <label>
-        마지막으로 끝낸 메인 챕터
-        <input
+      <label for="story-next-chapter" class="story-next-label">마지막으로 끝낸 메인 챕터</label>
+      <div class="story-next-stepper">
+        <button
+          type="button"
+          class="nk-btn story-next-step"
+          aria-label="이전 챕터"
+          :disabled="chapter <= MIN_CHAPTER"
+          @click="step(-1)"
+        >
+          −
+        </button>
+        <select
+          id="story-next-chapter"
           v-model.number="chapter"
-          type="number"
-          min="-1"
-          max="50"
+          class="nk-field story-next-select"
           @change="load"
-        />
-      </label>
-      <span class="hint">0–50, -1이면 처음부터</span>
-      <button type="button" :disabled="loading" @click="load">
-        {{ loading ? "불러오는 중…" : "추천받기" }}
-      </button>
+        >
+          <option v-for="o in options" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+        <button
+          type="button"
+          class="nk-btn story-next-step"
+          aria-label="다음 챕터"
+          :disabled="chapter >= MAX_CHAPTER"
+          @click="step(1)"
+        >
+          +
+        </button>
+      </div>
     </div>
 
-    <p v-if="failed" class="story-next-fallback">지금은 불러올 수 없어요</p>
+    <div class="story-next-body" :aria-busy="loading ? 'true' : undefined">
+      <p v-if="loading" class="story-next-status" role="status">불러오는 중…</p>
 
-    <ol v-else-if="entries.length" class="story-next-list">
-      <li v-for="(e, i) in entries" :key="i">
-        <span class="entry-title">{{ e.title }}</span>
-        <span class="badge" :class="{ optional: !e.required }">
-          {{ e.required ? "필수" : "선택" }}
-        </span>
-        <span v-if="e.importance" class="importance">
-          중요도 {{ importanceLabel[e.importance] ?? e.importance }}
-        </span>
-        <span v-if="e.note" class="entry-note">{{ e.note }}</span>
-      </li>
-    </ol>
+      <div v-else-if="failed" class="story-next-fallback">
+        <p>지금은 추천을 불러올 수 없어요.</p>
+        <button type="button" class="nk-btn nk-btn-sm" @click="load">다시 시도</button>
+      </div>
+
+      <template v-else-if="entries.length">
+        <p class="story-next-status" role="status">
+          {{ loadedFor !== null && loadedFor < 0 ? "처음부터" : `메인 ${loadedFor}챕터 다음` }}에 볼
+          스토리예요.
+        </p>
+        <ol class="story-next-list">
+          <li v-for="(e, i) in entries" :key="i">
+            <div class="entry-row">
+              <span class="entry-title">{{ e.title }}</span>
+              <span class="badge" :class="{ optional: !e.required }">
+                {{ e.required ? "필수" : "선택" }}
+              </span>
+              <span v-if="e.importance" class="importance">
+                중요도 {{ importanceLabel[e.importance] ?? e.importance }}
+              </span>
+            </div>
+            <p v-if="e.note" class="entry-note">{{ e.note }}</p>
+          </li>
+        </ol>
+      </template>
+
+      <p v-else class="story-next-status">추천할 스토리가 없어요.</p>
+    </div>
+
+    <dl class="story-next-legend">
+      <div>
+        <dt><span class="badge">필수</span></dt>
+        <dd>메인 스토리 이해에 필요한 순서</dd>
+      </div>
+      <div>
+        <dt><span class="badge optional">선택</span></dt>
+        <dd>건너뛰어도 흐름이 끊기지 않음</dd>
+      </div>
+    </dl>
 
     <p class="story-next-credit">
       순서 출처:
@@ -92,106 +156,153 @@ onMounted(load);
 
 <style scoped>
 .story-next {
-  margin: 16px 0;
-  padding: 20px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 12px;
-  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--nk-border);
+  border-radius: var(--nk-radius-lg);
+  background: var(--nk-surface);
 }
 .story-next-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: var(--nk-space-2) var(--nk-space-4);
+  padding: var(--nk-space-4);
+  border-bottom: 1px solid var(--nk-border);
 }
-.story-next-controls label {
+.story-next-label {
+  font-size: var(--nk-text-sm);
+  font-weight: 600;
+}
+.story-next-stepper {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  align-items: stretch;
 }
-.story-next-controls input {
-  width: 72px;
-  padding: 6px 10px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 8px;
-  background: var(--vp-c-bg);
-  color: var(--vp-c-text-1);
-  font-size: 14px;
+.story-next-step {
+  width: var(--nk-control-h);
+  padding: 0;
+  font-size: var(--nk-text-lg);
+  font-weight: 400;
 }
-.story-next-controls .hint {
-  font-size: 12px;
-  color: var(--vp-c-text-2);
+.story-next-step:first-child {
+  border-radius: var(--nk-radius-sm) 0 0 var(--nk-radius-sm);
 }
-.story-next-controls button {
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: 1px solid var(--vp-c-brand-1);
-  background: transparent;
-  color: var(--vp-c-brand-1);
-  font-size: 13px;
-  cursor: pointer;
+.story-next-step:last-child {
+  border-radius: 0 var(--nk-radius-sm) var(--nk-radius-sm) 0;
 }
-.story-next-controls button:disabled {
-  opacity: 0.6;
-  cursor: default;
+.story-next-select {
+  min-width: 150px;
+  margin: 0 -1px;
+  border-radius: 0;
+  position: relative;
+  z-index: 1;
+}
+.story-next-body {
+  padding: var(--nk-space-4);
+  min-height: 120px;
+}
+.story-next-status {
+  margin: 0 0 var(--nk-space-3);
+  font-size: var(--nk-text-sm);
+  color: var(--nk-text-muted);
 }
 .story-next-fallback {
-  margin: 16px 0 0;
-  color: var(--vp-c-text-2);
-  font-size: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nk-space-3);
+}
+.story-next-fallback p {
+  margin: 0;
+  font-size: var(--nk-text-sm);
+  color: var(--nk-text-muted);
 }
 .story-next-list {
-  margin: 16px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--nk-space-3);
   counter-reset: next;
 }
 .story-next-list li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
+  position: relative;
+  margin: 0;
+  padding-left: 28px;
   counter-increment: next;
 }
 .story-next-list li::before {
-  content: counter(next) ".";
-  color: var(--vp-c-brand-1);
+  content: counter(next);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 20px;
+  font-family: var(--nk-font-mono);
+  font-size: var(--nk-text-xs);
   font-weight: 600;
-  font-size: 14px;
+  color: var(--nk-text-muted);
+  text-align: right;
+}
+.entry-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--nk-space-2);
 }
 .entry-title {
-  font-size: 14px;
+  font-size: var(--nk-text-sm);
   font-weight: 600;
 }
 .badge {
-  font-size: 11px;
-  padding: 2px 8px;
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: var(--vp-c-brand-soft);
-  color: var(--vp-c-brand-1);
+  background: var(--nk-accent-soft);
+  color: var(--nk-accent);
+  font-size: var(--nk-text-xs);
+  font-weight: 600;
+  line-height: 1.5;
 }
 .badge.optional {
-  background: var(--vp-c-bg);
-  color: var(--vp-c-text-2);
-  border: 1px solid var(--vp-c-divider);
+  background: transparent;
+  color: var(--nk-text-muted);
+  border-color: var(--nk-border-strong);
 }
 .importance {
-  font-size: 11px;
-  color: var(--vp-c-text-2);
+  font-size: var(--nk-text-xs);
+  color: var(--nk-text-muted);
 }
 .entry-note {
-  flex-basis: 100%;
-  font-size: 12px;
-  color: var(--vp-c-text-2);
-  padding-left: 16px;
+  margin: var(--nk-space-1) 0 0;
+  font-size: var(--nk-text-xs);
+  line-height: 1.5;
+  color: var(--nk-text-muted);
+}
+.story-next-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nk-space-2) var(--nk-space-5);
+  margin: 0;
+  padding: var(--nk-space-3) var(--nk-space-4);
+  border-top: 1px solid var(--nk-border);
+}
+.story-next-legend > div {
+  display: flex;
+  align-items: center;
+  gap: var(--nk-space-2);
+}
+.story-next-legend dt,
+.story-next-legend dd {
+  margin: 0;
+}
+.story-next-legend dd {
+  font-size: var(--nk-text-xs);
+  color: var(--nk-text-muted);
 }
 .story-next-credit {
-  margin: 16px 0 0;
-  font-size: 12px;
-  color: var(--vp-c-text-2);
+  margin: 0;
+  padding: 0 var(--nk-space-4) var(--nk-space-3);
+  font-size: var(--nk-text-xs);
+  color: var(--nk-text-muted);
 }
 </style>

@@ -11,6 +11,7 @@ interface Stats {
 }
 
 const stats = ref<Stats | null>(null);
+const loading = ref(true);
 
 const formatDate = (d: Date) => {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -40,16 +41,40 @@ onMounted(async () => {
     };
   } catch {
     stats.value = null;
+  } finally {
+    loading.value = false;
   }
 });
+
+const placeholder = "—";
 </script>
 
 <template>
-  <div v-if="stats" class="live-stats">
-    <div class="stat"><b>{{ stats.nikkes.toLocaleString() }}</b><span>캐릭터</span></div>
-    <div class="stat"><b>{{ stats.scenes.toLocaleString() }}</b><span>스토리 씬</span></div>
-    <div class="stat"><b>{{ stats.events.toLocaleString() }}</b><span>이벤트</span></div>
-    <div class="stat"><b>v{{ stats.version }}</b><span>API 버전</span></div>
-    <div class="stat"><b>{{ stats.syncedAt }}</b><span>데이터 동기화</span></div>
-  </div>
+  <dl
+    v-if="loading || stats"
+    class="live-stats"
+    :aria-busy="loading ? 'true' : undefined"
+    aria-label="현재 데이터 규모"
+  >
+    <div class="stat">
+      <dt>캐릭터</dt>
+      <dd>{{ stats ? stats.nikkes.toLocaleString() : placeholder }}</dd>
+    </div>
+    <div class="stat">
+      <dt>스토리 씬</dt>
+      <dd>{{ stats ? stats.scenes.toLocaleString() : placeholder }}</dd>
+    </div>
+    <div class="stat">
+      <dt>이벤트</dt>
+      <dd>{{ stats ? stats.events.toLocaleString() : placeholder }}</dd>
+    </div>
+    <div class="stat">
+      <dt>데이터 기준일</dt>
+      <dd>{{ stats ? stats.syncedAt : placeholder }}</dd>
+    </div>
+    <div class="stat">
+      <dt>API 버전</dt>
+      <dd>{{ stats ? `v${stats.version}` : placeholder }}</dd>
+    </div>
+  </dl>
 </template>

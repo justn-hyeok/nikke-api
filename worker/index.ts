@@ -9,15 +9,40 @@
 // Vercel hobby keeps no request history, this is the traffic breakdown.
 
 const ORIGIN = "https://nikke-api-gunwoos-projects.vercel.app";
-const USER_TTL = 300;
-const USER_SWR = 3600;
+const USER_TTL = 1800;
+const USER_SWR = 86400;
+const AREA_KV_TTL = 30 * 86400;
 
 interface Env {
   ANALYTICS: {
     writeDataPoint(p: { blobs: string[]; doubles: number[]; indexes: string[] }): void;
   };
   RATE_LIMITER: { limit(opts: { key: string }): Promise<{ success: boolean }> };
+  AREA_KV?: { get(k: string): Promise<string | null>; put(k: string, v: string, o?: object): Promise<void> };
 }
+
+// intl_open_id from any blablaid form (path segment, base64 openid, share URL)
+const intlOpenIdOf = (input: string): string | null => {
+  let oid = input.trim();
+  const m = oid.match(/openid=([^&\s]+)/);
+  try {
+    if (m) oid = decodeURIComponent(m[1]);
+    const parts = atob(oid).split("-"); // "<game_id>-<intl_open_id>" or raw id
+    const id = parts.length === 2 ? parts[1] : oid;
+    return /^\d+$/.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+};
+
+const userTargetOf = (url: URL) => {
+  const raw =
+    url.pathname.match(/^\/api\/user\/([^/?]+)/)?.[1] ??
+    url.searchParams.get("blablaid") ??
+    url.searchParams.get("openid") ??
+    url.searchParams.get("url");
+  return raw ? intlOpenIdOf(raw) : null;
+};
 
 // only origin-bound requests consume the limit — cache hits cost us nothing,
 // but bypass tricks (junk params, ?refresh) can't drain Vercel's quota
@@ -51,6 +76,7 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const url = new URL(request.url);
     const userPath = url.pathname.startsWith("/api/user");
+    const target = userPath ? userTargetOf(url) : null;
     const group = pathGroup(url.pathname);
     const track = (edge: string) =>
       env.ANALYTICS?.writeDataPoint({
@@ -71,6 +97,11 @@ export default {
 
     const refresh = url.searchParams.has("refresh");
     url.searchParams.delete("refresh");
+    // a remembered nikke_area_id lets the origin skip one upstream call
+    if (target && !url.searchParams.has("area")) {
+      const area = await env.AREA_KV?.get(target);
+      if (area) url.searchParams.set("area", area);
+    }
     url.searchParams.sort(); // param order shouldn't split the cache
     const key = new Request(ORIGIN + url.pathname + url.search);
 
@@ -97,6 +128,19 @@ export default {
           `public, max-age=${USER_TTL}, s-maxage=${USER_TTL}, stale-while-revalidate=${USER_SWR}`,
         );
       ctx.waitUntil(caches.default.put(key, stored));
+      // profile responses carry intlOpenId + areaId — remember the mapping
+      if (target && env.AREA_KV) {
+        ctx.waitUntil(
+          (async () => {
+            try {
+              const j = (await res.clone().json()) as { intlOpenId?: string; areaId?: number };
+              const openid = j.intlOpenId ?? target;
+              if (typeof j.areaId === "number")
+                await env.AREA_KV!.put(openid, String(j.areaId), { expirationTtl: AREA_KV_TTL });
+            } catch { /* not json */ }
+          })(),
+        );
+      }
     }
     track("MISS");
     return outgoing(res, "MISS", userPath);

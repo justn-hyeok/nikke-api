@@ -1053,10 +1053,10 @@ async function userProfile(c: Context) {
   const target = decodeOpenid(q);
   if (!target) return c.json({ error: "invalid blablaid" }, 400);
   try {
-    const info = await playerInfo<{ area_id?: string }>(target.intlOpenId);
-    if (info.code !== 0 || !info.data)
-      return c.json({ error: info.msg ?? "lookup failed", code: info.code }, 502);
-    const areaId = Number(info.data.area_id ?? 0);
+    const resolved = await resolveAreaId(c, target.intlOpenId);
+    if ("error" in resolved)
+      return c.json({ error: resolved.error, code: resolved.code }, 502);
+    const areaId = resolved.areaId;
     const body = { intl_open_id: target.intlOpenId, nikke_area_id: areaId };
     const [basic, outpost, { charRef, avatarRef, stageRef, recycles }] = await Promise.all([
       gameApi("Game", "GetUserProfileBasicInfo", body),
@@ -1149,16 +1149,26 @@ const openidInput = (c: Context) =>
   c.req.query("url") ??
   "";
 
+// ?area= lets an edge cache skip the playerInfo call — nikke_area_id
+// (the server the account is on) changes only on a server transfer
+async function resolveAreaId(c: Context, intlOpenId: string) {
+  const q = c.req.query("area");
+  if (q && /^\d+$/.test(q)) return { areaId: Number(q) };
+  const info = await playerInfo<{ area_id?: string }>(intlOpenId);
+  if (info.code === 0 && info.data) return { areaId: Number(info.data.area_id ?? 0) };
+  return { error: info.msg ?? "lookup failed", code: info.code };
+}
+
 // shared helper for the user-nikke routes: resolve the profile target
 // and fetch the owned-character list (never the per-character details)
 async function loadOwnedNikkes(c: Context) {
   const q = openidInput(c);
   const target = decodeOpenid(q);
   if (!target) return { error: c.json({ error: "invalid blablaid" }, 400) };
-  const info = await playerInfo<{ area_id?: string }>(target.intlOpenId);
-  if (info.code !== 0 || !info.data)
-    return { error: c.json({ error: info.msg ?? "lookup failed", code: info.code }, 502) };
-  const body = { intl_open_id: target.intlOpenId, nikke_area_id: Number(info.data.area_id ?? 0) };
+  const resolved = await resolveAreaId(c, target.intlOpenId);
+  if ("error" in resolved)
+    return { error: c.json({ error: resolved.error, code: resolved.code }, 502) };
+  const body = { intl_open_id: target.intlOpenId, nikke_area_id: resolved.areaId };
   const chars = await gameApi("Game", "GetUserCharacters", body);
   const owned = ((chars.data as any)?.characters ?? []) as any[];
   return { body, owned };

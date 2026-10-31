@@ -81,7 +81,8 @@ const send = async () => {
   input.value = "";
   pending.value = true;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 60_000);
+  // the backend may reason for up to ~90 s (Cloudflare cuts at 100 s)
+  const timer = setTimeout(() => ctrl.abort(), 95_000);
   try {
     const body: Record<string, unknown> = {
       messages: messages.value
@@ -152,7 +153,7 @@ const send = async () => {
           </span>
         </div>
       </div>
-      <p v-if="pending" class="chat-empty">답변을 기다리는 중…</p>
+      <p v-if="pending" class="chat-empty">생각하는 중이에요… 길면 1분 정도 걸려요.</p>
     </div>
 
     <p v-if="error" class="chat-error">{{ error }}</p>

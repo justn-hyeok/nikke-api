@@ -349,7 +349,10 @@ export function createDemoServer(cfg = config()) {
     res.on("close", () => ac.abort());
     const started = Date.now();
     try {
-      if (!(await verifyTurnstile(cfg, body.turnstileToken, ip, ac.signal))) {
+      const human = await verifyTurnstile(cfg, body.turnstileToken, ip, ac.signal);
+      // a deadline/disconnect during verification is a timeout, not a failed check
+      if (ac.signal.aborted) throw Object.assign(new Error("aborted"), { name: "AbortError" });
+      if (!human) {
         return send(res, 403, { error: "사람 확인에 실패했어요. 새로고침 후 다시 시도해 주세요." });
       }
       const out = await runChat(cfg, body.messages, ac.signal);
@@ -373,6 +376,7 @@ export function createDemoServer(cfg = config()) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  if (typeof AbortSignal.any !== "function") throw new Error("Node >= 20.3 required (AbortSignal.any)");
   process.on("unhandledRejection", (e) => console.log(JSON.stringify({ demo: "error", kind: "unhandledRejection", name: e?.name ?? typeof e })));
   const cfg = config();
   createDemoServer(cfg).listen(cfg.port, "127.0.0.1", () =>

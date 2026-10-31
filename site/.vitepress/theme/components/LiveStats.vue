@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-
-const BASE = "https://nikke-api-edge.leegunwoo0325-5e6.workers.dev";
+import { API_BASE as BASE } from "../api-base";
 
 interface Stats {
   version: string;

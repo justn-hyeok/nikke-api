@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { MCP_URL } from "../api-base";
 
-const url = "https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp";
+const url = MCP_URL;
 const copied = ref(false);
 
 const copy = async () => {

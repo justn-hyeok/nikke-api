@@ -78,6 +78,9 @@ const trim = (v: any): any => {
 };
 
 const spec: any = JSON.parse(JSON.stringify(openapi));
+if (process.env.VITE_API_BASE) {
+  spec.servers = [{ url: process.env.VITE_API_BASE.replace(/\/$/, "") }];
+}
 let ok = 0;
 const skipped: string[] = [];
 

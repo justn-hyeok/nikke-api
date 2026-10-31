@@ -54,6 +54,67 @@
 
 
 
+.home-section {
+  margin: 48px 0;
+}
+.prompt-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.prompt-card {
+  padding: 14px 16px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  background: var(--vp-c-bg-soft);
+}
+.prompt-card p {
+  margin: 0;
+  font-size: 14px;
+}
+.prompt-card span {
+  display: block;
+  margin-top: 8px;
+  font-size: 11px;
+  font-family: var(--vp-font-family-mono);
+  color: var(--vp-c-text-2);
+}
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 16px 0;
+}
+.feature-item p {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+}
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 20px;
+  margin: 16px 0;
+}
+.steps-col {
+  padding: 16px 20px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  background: var(--vp-c-bg-soft);
+}
+.steps-col ol {
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+.steps-col li {
+  margin: 6px 0;
+  font-size: 14px;
+}
+.steps-col code {
+  word-break: break-all;
+}
+
 .api-page-head {
   max-width: 1200px;
   margin: 0 auto;

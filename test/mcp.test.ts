@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 process.env.NIKKE_DATA_DIR = path.join(import.meta.dirname, "fixtures/dist");
 const { default: app } = await import("../src/app.js");
-const { fitJson } = await import("../src/mcp.js");
+const { fitJson, requestOrigin } = await import("../src/mcp.js");
 
 // stateless 2025-era Streamable HTTP: every call is a standalone POST and the
 // JSON-RPC reply comes back as a single SSE message
@@ -115,6 +115,14 @@ test("search + fetch follow ChatGPT's connector contract", async () => {
   assert.ok(JSON.parse(doc.text).details.skills);
   assert.equal((await tool("fetch", { id: "scene:d_main_01_01" })).json.title, "d_main_01_01");
   assert.equal((await tool("fetch", { id: "bogus" })).isError, true);
+});
+
+test("links follow X-Forwarded-Proto behind a TLS proxy", () => {
+  const req = (h: Record<string, string>) => new Request("http://nikke-mcp.justn.me/mcp", { headers: h });
+  assert.equal(requestOrigin(req({})), "http://nikke-mcp.justn.me");
+  assert.equal(requestOrigin(req({ "x-forwarded-proto": "https" })), "https://nikke-mcp.justn.me");
+  assert.equal(requestOrigin(req({ "x-forwarded-proto": "https, http" })), "https://nikke-mcp.justn.me");
+  assert.equal(requestOrigin(req({ "x-forwarded-proto": "javascript" })), "http://nikke-mcp.justn.me");
 });
 
 test("JSON results also carry structuredContent", async () => {

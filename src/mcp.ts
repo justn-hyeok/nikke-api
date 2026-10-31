@@ -585,7 +585,16 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
   return server;
 }
 
+// behind a TLS-terminating proxy (cloudflared, nginx) the request reaches us
+// as http — trust X-Forwarded-Proto so search/fetch links stay https
+export function requestOrigin(req: Request) {
+  const url = new URL(req.url);
+  const proto = req.headers.get("x-forwarded-proto")?.split(",")[0].trim();
+  if (proto === "http" || proto === "https") url.protocol = `${proto}:`;
+  return url.origin;
+}
+
 export const createNikkeMcp = (api: Fetcher, version: string) =>
-  createMcpHandler((ctx) => buildServer(api, version, ctx.requestInfo ? new URL(ctx.requestInfo.url).origin : ""), {
+  createMcpHandler((ctx) => buildServer(api, version, ctx.requestInfo ? requestOrigin(ctx.requestInfo) : ""), {
     onerror: (e) => console.error(JSON.stringify({ mcp: "error", message: e.message })),
   });

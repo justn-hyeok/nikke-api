@@ -78,6 +78,7 @@ test("chat runs allowed tools only and returns plain reply", async () => {
   assert.ok(seen[0].body.tools.every((t) => t.function.name !== "get_user_profile"));
   assert.equal(seen[0].auth, `Bearer ${KEY}`);
   assert.equal(seen[0].body.messages[0].role, "system");
+  assert.equal(seen[0].body.reasoning_effort, "none"); // default extra body
 });
 
 test("request checks: origin, IP header, content type, body", async () => {

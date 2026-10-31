@@ -17,6 +17,17 @@ const num = (k, d) => {
   return Number.isFinite(v) && v > 0 ? v : d;
 };
 
+const RESERVED = new Set(["model", "messages", "tools", "tool_choice", "max_tokens", "stream"]);
+function parseExtra(raw) {
+  try {
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== "object" || Array.isArray(o)) return {};
+    return Object.fromEntries(Object.entries(o).filter(([k]) => !RESERVED.has(k)));
+  } catch {
+    return {};
+  }
+}
+
 export const config = () => ({
   port: num("DEMO_PORT", 3003),
   enabled: env("DEMO_ENABLED", "1") === "1",
@@ -25,6 +36,9 @@ export const config = () => ({
   llmApiKey: env("LLM_API_KEY", ""),
   llmModel: env("LLM_MODEL", "deepseek-ai/deepseek-v4.1-flash-1017"),
   mcpUrl: env("MCP_URL", "http://127.0.0.1:3001/mcp"),
+  // provider-specific body fields; Deploy's DeepSeek reasons by default and the
+  // reasoning tokens eat max_tokens (empty answers) — "none" turns it off
+  llmExtra: parseExtra(env("LLM_EXTRA_JSON", '{"reasoning_effort":"none"}')),
   turnstileSecret: env("TURNSTILE_SECRET", ""),
   perIpPerMinute: num("DEMO_PER_IP_PER_MIN", 3),
   perIpPerDay: num("DEMO_PER_IP_PER_DAY", 20),
@@ -185,6 +199,7 @@ async function llm(cfg, messages, toolDefs, signal) {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${cfg.llmApiKey}` },
     body: JSON.stringify({
+      ...cfg.llmExtra,
       model: cfg.llmModel,
       messages,
       ...(toolDefs ? { tools: toolDefs, tool_choice: "auto" } : {}),

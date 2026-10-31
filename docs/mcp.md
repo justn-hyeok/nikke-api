@@ -3,7 +3,7 @@
 nikke-api는 `/mcp`에서 [MCP(Model Context Protocol)](https://modelcontextprotocol.io) 서버를 제공합니다. ChatGPT, Claude 같은 AI 클라이언트에 연결하면 니케 캐릭터·스토리·소장품·유저 데이터를 대화 중에 바로 조회할 수 있습니다.
 
 ```
-https://nikke-api-gunwoos-projects.vercel.app/mcp
+https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp
 ```
 
 - 인증이 없습니다. URL만 넣으면 됩니다.
@@ -29,7 +29,7 @@ https://nikke-api-gunwoos-projects.vercel.app/mcp
 개인 계정(Free·Pro·Max)은 이렇게 추가합니다.
 
 1. **설정 → 커넥터**에서 **커스텀 커넥터 추가**를 누릅니다.
-2. 이름(예: `NIKKE`)을 정하고, URL에 `https://nikke-api-gunwoos-projects.vercel.app/mcp`를 넣습니다.
+2. 이름(예: `NIKKE`)을 정하고, URL에 `https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp`를 넣습니다.
 3. OAuth 설정은 비워 두고 **추가**를 누릅니다.
 4. 대화 입력창의 **+** 메뉴에서 커넥터를 켜고 질문합니다.
 
@@ -42,7 +42,7 @@ https://nikke-api-gunwoos-projects.vercel.app/mcp
 ## Claude Code
 
 ```bash
-claude mcp add --transport http nikke https://nikke-api-gunwoos-projects.vercel.app/mcp
+claude mcp add --transport http nikke https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp
 ```
 
 - 기본은 현재 프로젝트에만 추가됩니다. 모든 프로젝트에서 쓰려면 `--scope user`를 붙입니다.
@@ -54,7 +54,7 @@ ChatGPT는 개발자 모드에서 커스텀 MCP 서버를 연결합니다. 무�
 
 1. **설정 → 앱 및 커넥터 → 고급 설정**에서 **개발자 모드**를 켭니다.
 2. 커넥터 화면에서 **만들기**를 누릅니다.
-3. 이름(예: `NIKKE`)과 설명을 적고, URL에 `https://nikke-api-gunwoos-projects.vercel.app/mcp`를 넣습니다.
+3. 이름(예: `NIKKE`)과 설명을 적고, URL에 `https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp`를 넣습니다.
 4. 인증은 **없음**을 고르고, 신뢰 확인에 체크한 뒤 만듭니다.
 5. 새 대화에서 **+ → 더보기 → 개발자 모드**를 고르고 이 커넥터를 켭니다.
 
@@ -68,7 +68,7 @@ ChatGPT는 개발자 모드에서 커스텀 MCP 서버를 연결합니다. 무�
 {
   "mcpServers": {
     "nikke": {
-      "url": "https://nikke-api-gunwoos-projects.vercel.app/mcp"
+      "url": "https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp"
     }
   }
 }
@@ -83,7 +83,7 @@ ChatGPT는 개발자 모드에서 커스텀 MCP 서버를 연결합니다. 무�
   "servers": {
     "nikke": {
       "type": "http",
-      "url": "https://nikke-api-gunwoos-projects.vercel.app/mcp"
+      "url": "https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp"
     }
   }
 }
@@ -98,7 +98,7 @@ ChatGPT는 개발자 모드에서 커스텀 MCP 서버를 연결합니다. 무�
   "mcpServers": {
     "nikke": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "https://nikke-api-gunwoos-projects.vercel.app/mcp"]
+      "args": ["-y", "mcp-remote", "https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp"]
     }
   }
 }
@@ -117,7 +117,7 @@ Transport를 `Streamable HTTP`로 고르고 URL을 넣은 뒤 **Connect → Tool
 **curl**로는 이렇게 확인합니다. 응답은 SSE 형식(`event: message` / `data: {...}`)으로 옵니다.
 
 ```bash
-curl -X POST https://nikke-api-gunwoos-projects.vercel.app/mcp \
+curl -X POST https://nikke-api-edge.leegunwoo0325-5e6.workers.dev/mcp \
   -H 'content-type: application/json' \
   -H 'accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'

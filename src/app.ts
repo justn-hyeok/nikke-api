@@ -828,56 +828,73 @@ const mainChapters = async () => {
 };
 
 // the curated route resolved against the data, with chapters past the
-// community's coverage appended so the route reaches the latest chapter
+// guide's coverage appended so the route reaches the latest chapter
 async function storyRoute() {
-  const [chapters, events] = [await mainChapters(), await eventGroups()];
-  const last = Math.max(...chapters.keys());
-  const entries = [...STORY_ROUTE, ...Array.from({ length: Math.max(0, last - ROUTE_COVERAGE_CHAPTER) }, (_, i) => ({ kind: "main" as const, chapter: ROUTE_COVERAGE_CHAPTER + 1 + i }))];
-  return entries.map((e, step) => {
+  const [chapters, events, scenes] = [await mainChapters(), await eventGroups(), await getScenes()];
+  const last = Math.max(-1, ...chapters.keys());
+  const extra = Array.from({ length: Math.max(0, last - ROUTE_COVERAGE_CHAPTER) }, (_, i) => ({ kind: "main" as const, chapter: ROUTE_COVERAGE_CHAPTER + 1 + i }));
+  return [...STORY_ROUTE, ...extra].map((e, step) => {
     if (e.kind === "main") {
-      const scenes = chapters.get(e.chapter) ?? [];
-      return { step, kind: "main" as const, key: `chapter:${e.chapter}`, chapter: e.chapter, title: `메인 ${e.chapter}챕터`, scenes: scenes.length, firstScene: scenes[0] ?? null, inData: scenes.length > 0, ...(e.chapter > ROUTE_COVERAGE_CHAPTER ? { note: "커뮤니티 루트 범위 밖 — 이벤트 배치 정보 없음" } : {}) };
+      const sc = chapters.get(e.chapter) ?? [];
+      const note = e.chapter > ROUTE_COVERAGE_CHAPTER ? "가이드 범위 밖 — 이벤트 배치 정보 없음" : "note" in e ? e.note : undefined;
+      return { step, kind: "main" as const, key: `chapter:${e.chapter}`, ids: [] as string[], chapter: e.chapter, title: `메인 ${e.chapter}챕터`, required: true, scenes: sc.length, firstScene: sc[0] ?? null, inData: sc.length > 0, ...(note ? { note } : {}) };
     }
-    if (e.kind === "event") {
-      const found = events.get(e.id);
-      return { step, kind: "event" as const, key: e.id, id: e.id, title: found?.title ?? e.id, episodes: found?.episodes ?? 0, inData: !!found, basis: e.basis, ...(e.note ? { note: e.note } : {}) };
-    }
-    return { step, kind: e.type, key: `missing:${e.title}`, title: e.title, inData: false, basis: e.basis, note: [e.note, "이 API 데이터에는 스크립트가 없음"].filter(Boolean).join(" · ") };
+    const found = e.ids.filter((id) => events.has(id));
+    const affectionScenes = e.nikke ? scenes.filter((s) => s.category === "attractive" && s.nikke === e.nikke).length : 0;
+    const inData = e.kind === "affection" ? affectionScenes > 0 : found.length > 0;
+    return {
+      step,
+      kind: e.kind,
+      key: e.ids[0] ?? `${e.kind}:${e.title}`,
+      ids: found,
+      title: e.title,
+      ...(e.nikke ? { nikke: e.nikke } : {}),
+      required: e.required,
+      ...(e.importance ? { importance: e.importance } : {}),
+      ...(e.kind === "affection" ? { scenes: affectionScenes } : { episodes: found.reduce((n, id) => n + (events.get(id)?.episodes ?? 0), 0) }),
+      inData,
+      ...(e.note || !inData ? { note: [e.note, inData ? "" : "이 API 데이터에는 스크립트가 없음"].filter(Boolean).join(" · ") } : {}),
+    };
   });
 }
 
 app.get("/api/story/route", async (c) => {
   const entries = await storyRoute();
-  const placed = new Set(entries.map((e) => e.key));
+  const placed = new Set(entries.flatMap((e) => e.ids));
   const unplaced = [...(await eventGroups()).values()].filter((e) => !placed.has(e.id)).map((e) => ({ id: e.id, title: e.title, episodes: e.episodes }));
   return c.json({ sources: ROUTE_SOURCES, coverageChapter: ROUTE_COVERAGE_CHAPTER, count: entries.length, entries, unplaced });
 });
 
 // where to go next: after main chapter N (or a given route entry), skipping
-// what was already read; `missed` lists side reads placed before that point
+// what was already read; `missed` lists required stories placed before that
+// point that weren't marked read
 app.get("/api/story/next", async (c) => {
   const { chapter, after } = c.req.query();
-  const done = new Set((c.req.query("done") ?? "").split(",").map((s) => s.trim()).filter(Boolean));
+  const done = new Set((c.req.query("done") ?? "").split(",").map((s) => searchNorm(s)).filter(Boolean));
   const limit = Math.min(Number(c.req.query("limit") ?? 5) || 5, 20);
+  const requiredOnly = truthy(c.req.query("required"));
   const entries = await storyRoute();
+  type Entry = (typeof entries)[number];
+  // an entry is named by its key, any of its event ids, its title or (main) its chapter number
+  const names = (e: Entry) => [e.key, ...e.ids, e.title, ...(e.kind === "main" ? [String(e.chapter)] : [])].map(searchNorm);
   let pos: number;
   if (after) {
     const na = searchNorm(after);
-    pos = entries.findIndex((e) => searchNorm(e.key) === na || searchNorm(e.title) === na);
-    if (pos < 0) return c.json({ error: `"${after}" is not on the route — use an event id or title from /api/story/route` }, 404);
+    pos = entries.findIndex((e) => names(e).includes(na));
+    if (pos < 0) return c.json({ error: `"${after}" is not on the route — use a title or event id from /api/story/route` }, 404);
   } else if (chapter != null && chapter !== "") {
     const n = Number(chapter);
     if (!Number.isInteger(n) || n < -1) return c.json({ error: "invalid chapter" }, 400);
     // -1 = nothing read yet; otherwise the main chapter itself
     pos = n === -1 ? -1 : entries.findIndex((e) => e.kind === "main" && e.chapter === n);
-    if (n !== -1 && pos < 0) return c.json({ error: `chapter ${n} is not in the data` }, 404);
+    if (n !== -1 && pos < 0) return c.json({ error: `chapter ${n} is not on the route` }, 404);
   } else {
     return c.json({ error: "chapter or after required" }, 400);
   }
-  const isDone = (e: (typeof entries)[number]) => done.has(e.key) || (e.kind === "main" && done.has(String(e.chapter)));
-  const next = entries.slice(pos + 1).filter((e) => !isDone(e)).slice(0, limit);
+  const isDone = (e: Entry) => names(e).some((n) => done.has(n));
+  const next = entries.slice(pos + 1).filter((e) => !isDone(e) && (!requiredOnly || e.required)).slice(0, limit);
   // only meaningful when the reader says what they've read
-  const missed = done.size ? entries.slice(0, pos + 1).filter((e) => e.kind !== "main" && e.inData && !isDone(e)) : [];
+  const missed = done.size ? entries.slice(0, pos + 1).filter((e) => e.kind !== "main" && e.required && e.inData && !isDone(e)) : [];
   return c.json({ position: pos >= 0 ? entries[pos] : null, next, missed, sources: ROUTE_SOURCES });
 });
 

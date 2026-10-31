@@ -248,26 +248,31 @@ test("compare_nikkes prefers an exact name and flags ambiguity", async () => {
 
 test("story_route resolves the curated order against the data", async () => {
   const r = (await tool("story_route")).json;
-  const keys = r.entries.map((e: any) => e.key);
-  assert.equal(keys[0], "chapter:0");
+  assert.equal(r.entries[0].key, "chapter:0");
   assert.equal(r.entries[0].firstScene, "d_main_01_01"); // Chapter 0 = d_main_01
-  // fixtures have only one chapter, so curated events show as not in data
-  assert.ok(r.entries.some((e: any) => e.key === "event_lastkingdom1" && !e.inData && e.basis.includes("C")));
-  assert.ok(r.unplaced.some((e: any) => e.id === "event_firstaffection"));
-  assert.ok(r.sources.A.url.startsWith("https://www.youtube.com/"));
+  const lk = r.entries.find((e: any) => e.title === "LAST KINGDOM");
+  assert.equal(lk.key, "event_lastkingdom1");
+  assert.equal(lk.inData, false); // fixtures have no Last Kingdom scenes
+  assert.match(lk.note, /스크립트가 없음/);
+  const fa = r.entries.find((e: any) => e.title === "FIRST AFFECTION");
+  assert.deepEqual([fa.inData, fa.required, fa.importance, fa.episodes], [true, false, "low", 2]);
+  assert.ok(!r.unplaced.some((e: any) => e.id === "event_firstaffection")); // placed now
+  assert.ok(r.unplaced.some((e: any) => e.id === "event_claymore"));
+  assert.ok(r.sources.S.url.startsWith("https://ssissun.github.io/"));
 });
 
 test("next_story walks the route from a chapter or an entry", async () => {
-  const n = (await tool("next_story", { chapter: 26, limit: 2 })).json;
-  assert.deepEqual(n.next.map((e: any) => e.key), ["event_lastkingdom1", "event_lastkingdom2"]);
+  const n = (await tool("next_story", { chapter: 26, limit: 3 })).json;
+  assert.deepEqual(n.next.map((e: any) => e.title), ["NEW YEAR, NEW SWORD", "SECOND AFFECTION", "FIRST AFFECTION"]);
   assert.deepEqual(n.missed, []); // nothing reported as read
-  const after = (await tool("next_story", { after: "event_lastkingdom1", done: ["event_lastkingdom2"], limit: 1 })).json;
-  assert.equal(after.next[0].key, "event_dirtybackyard");
-  const m = (await tool("next_story", { chapter: 2, done: ["0", "1"] })).json;
-  assert.deepEqual(m.missed, []); // no events placed before chapter 2
-  // NO CALLER ID sits before chapter 3 but has no script in the fixtures —
-  // missed only suggests what can actually be read
-  assert.deepEqual((await tool("next_story", { chapter: 14, done: ["x"] })).json.missed, []);
+  const req = (await tool("next_story", { chapter: 26, limit: 3, requiredOnly: true })).json;
+  assert.deepEqual(req.next.map((e: any) => e.title), ["NEW YEAR, NEW SWORD", "SECOND AFFECTION", "LAST KINGDOM"]);
+  // titles, event ids and chapter numbers all name an entry
+  const after = (await tool("next_story", { after: "last kingdom", done: ["event_dirtybackyard"], limit: 1 })).json;
+  assert.equal(after.next[0].title, "BOOM'S DAY");
+  // FIRST AFFECTION is optional, so it's never "missed"; the fixtures hold no
+  // required story before chapter 30
+  assert.deepEqual((await tool("next_story", { chapter: 30, done: ["x"] })).json.missed, []);
   assert.equal((await tool("next_story", {})).isError, true);
   assert.equal((await tool("next_story", { after: "nope" })).isError, true);
 });

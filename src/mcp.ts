@@ -498,7 +498,7 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
     {
       title: "Story reading order",
       description:
-        "The recommended order to read NIKKE's story: main chapters (game numbering, 0-based) with events and side stories slotted where the community places them, each with the sources it rests on (YouTube guides) and notes where they disagree. 'unplaced' lists events no source positions (mostly seasonal). Entries with inData=false have no script here.",
+        "The recommended order to read NIKKE's story (up to Chapter 50), from the community guide linked on the Arca Live NIKKE channel: main chapters (game numbering, 0-based) with events, side stories and affection stories slotted in, each marked required or optional (with importance) and with notes, including where other guides disagree. 'unplaced' lists events the guide doesn't position (mostly seasonal). Entries with inData=false have no script here. Credit the guide (sources.S) when presenting it.",
       inputSchema: z.object({}),
       annotations: READ_ONLY,
     },
@@ -510,11 +510,12 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
     {
       title: "What to read next",
       description:
-        "Next stories on the reading route from where the reader is. Give the last main chapter they finished (game numbering: Chapter 0 = the first; -1 = just starting) or the event/side story they just finished, plus what they've already read. Returns next (in order) and missed (events placed earlier on the route that they haven't read — only when done is given). Cite the basis sources when recommending.",
+        "Next stories on the reading route from where the reader is. Give the last main chapter they finished (game numbering: Chapter 0 = the first; -1 = just starting) or the story they just finished, plus what they've already read. Returns next (in order; each says required or optional) and missed (required stories earlier on the route they haven't read — only when done is given).",
       inputSchema: z.object({
         chapter: z.number().int().min(-1).optional().describe("Last main chapter finished, game numbering (0-based)"),
         after: z.string().optional().describe("Or: the event id/title just finished, e.g. event_lastkingdom2 or 'LAST KINGDOM II'"),
-        done: z.array(z.string()).optional().describe("Event ids (event_*), or main chapter numbers as strings, already read"),
+        done: z.array(z.string()).optional().describe("Already read: titles ('RED ASH'), event ids, or main chapter numbers as strings"),
+        requiredOnly: z.boolean().default(false).describe("Skip optional stories"),
         limit: z.number().int().min(1).max(20).default(5),
       }),
       annotations: READ_ONLY,
@@ -524,7 +525,7 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
       return call(
         api,
         "next_story",
-        `/api/story/next${qs({ chapter: a.chapter, after: a.after, done: a.done?.join(","), limit: a.limit })}`,
+        `/api/story/next${qs({ chapter: a.chapter, after: a.after, done: a.done?.join(","), required: a.requiredOnly ? 1 : undefined, limit: a.limit })}`,
       );
     },
   );

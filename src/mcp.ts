@@ -16,6 +16,7 @@ const MAX_CHARS = 60_000;
 const INSTRUCTIONS = `Unofficial NIKKE (GODDESS OF VICTORY: NIKKE) game data. Data © SHIFT UP / Level Infinite.
 - Character names exist in ko/en/ja/zh-TW and searches match any of them; responses default to Korean (lang=ko).
 - Story scene scripts are Korean only.
+- Alternate versions (이격, e.g. "라피 : 레드 후드") are linked to their original: name searches and character story lookups cover every version unless a tool says otherwise.
 - Filters take English enum values; Korean terms map as noted in each parameter (e.g. 철갑 = Iron).
 - Lists are paged with limit/offset. Oversized responses come back with a "truncated" object telling you how to fetch the rest.
 - get_user_* tools query the live game API through a shared account: they are slow and rate limited, so call them only when the user gives a BlablaLink share link.`;
@@ -24,6 +25,10 @@ const LANG = z
   .enum(["ko", "en", "ja", "zh-TW"])
   .default("ko")
   .describe("Language to flatten localized names/text into (default ko)");
+const FAMILY = z
+  .boolean()
+  .default(true)
+  .describe("Also cover the character's other versions (original + 이격). Default true");
 const LIMIT = z.number().int().min(1).max(100).default(20);
 const OFFSET = z.number().int().min(0).default(0);
 const BLABLAID = z
@@ -58,7 +63,7 @@ const FILTERS = {
 const NIKKE_DEFAULT_FIELDS = [
   "id", "resourceId", "name", "rarity", "class", "burst", "corporation", "element", "weapon",
   "details.skills", "details.backstory", "details.squad", "details.cv", "details.combat",
-  "details.attractiveScenarios",
+  "details.attractiveScenarios", "family",
 ];
 const NIKKE_EXTRA = {
   statsPerLevel: "details.statsPerLevel",
@@ -226,6 +231,7 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
       inputSchema: z.object({
         q: z.string().optional().describe("Name substring, any language"),
         ...FILTERS,
+        family: FAMILY,
         limit: LIMIT,
         offset: OFFSET,
         lang: LANG,
@@ -238,6 +244,7 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
         "search_nikkes",
         `/api/nikkes${qs({
           q: a.q,
+          family: a.family ? 1 : undefined,
           element: a.element,
           class: a.class,
           burst: a.burst,
@@ -284,6 +291,7 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
         q: z.string().optional().describe("Scene name or groupId substring"),
         category: z.enum(["main", "event", "sudden", "attractive"]).optional(),
         nikke: z.string().optional().describe("Affection scenes of this character (name or id)"),
+        family: FAMILY,
         limit: LIMIT,
         offset: OFFSET,
       }),
@@ -293,7 +301,7 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
       call(
         api,
         "search_scenes",
-        `/api/scenes${qs({ q: a.q, category: a.category, nikke: a.nikke, limit: a.limit, offset: a.offset })}`,
+        `/api/scenes${qs({ q: a.q, category: a.category, nikke: a.nikke, family: a.family ? 1 : undefined, limit: a.limit, offset: a.offset })}`,
       ),
   );
 
@@ -378,6 +386,111 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
       annotations: READ_ONLY,
     },
     async (a) => call(api, "get_favorite", `/api/favorites/${enc(a.id)}${qs({ lang: a.lang })}`),
+  );
+
+  server.registerTool(
+    "read_event",
+    {
+      title: "Read a whole story event",
+      description:
+        "A story event's full script, episode by episode in story order, as 'speaker: text' lines (Korean). Use this to summarize or retell an event instead of calling get_scene per episode. Long events come back in pages — continue from truncated.nextOffset.",
+      inputSchema: z.object({
+        id: z.string().min(1).describe("Event id from list_events, e.g. event_BunnyX777"),
+        offset: OFFSET.describe("First episode to return (0-based)"),
+        limit: z.number().int().min(1).max(30).default(30).describe("Episodes per page"),
+      }),
+      annotations: READ_ONLY,
+    },
+    async (a) => call(api, "read_event", `/api/events/${enc(a.id)}/script${qs({ offset: a.offset, limit: a.limit })}`),
+  );
+
+  server.registerTool(
+    "search_lines",
+    {
+      title: "Search story dialogue",
+      description:
+        "Full-text search over every story line (main, events, sudden, affection — Korean). Find who said something, where a phrase or topic comes up, or all lines of one speaker. Each hit names its scene and event; read around it with get_scene.",
+      inputSchema: z.object({
+        q: z.string().optional().describe("Text to find in the dialogue (Korean), punctuation ignored"),
+        speaker: z.string().optional().describe("Only lines spoken by this character (Korean name, e.g. 라피)"),
+        family: FAMILY,
+        category: z.enum(["main", "event", "sudden", "attractive"]).optional(),
+        limit: LIMIT,
+        offset: OFFSET,
+      }),
+      annotations: READ_ONLY,
+    },
+    async (a) => {
+      if (!a.q && !a.speaker) return text(JSON.stringify({ error: "give q, speaker or both" }), true);
+      return call(
+        api,
+        "search_lines",
+        `/api/lines${qs({ q: a.q, speaker: a.speaker, family: a.family ? 1 : undefined, category: a.category, limit: a.limit, offset: a.offset })}`,
+      );
+    },
+  );
+
+  server.registerTool(
+    "nikke_appearances",
+    {
+      title: "Where a character appears in the story",
+      description:
+        "Every story scene a character speaks in (all of their versions), with line counts, plus the story events they appear in ranked by how much they talk. Answers 'which events feature X' or 'where does X show up'.",
+      inputSchema: z.object({
+        nameOrId: z.string().min(1).describe("Character name (any language) or id"),
+        category: z.enum(["main", "event", "sudden", "attractive"]).optional(),
+        limit: LIMIT,
+        offset: OFFSET,
+      }),
+      annotations: READ_ONLY,
+    },
+    async (a) =>
+      call(
+        api,
+        "nikke_appearances",
+        `/api/nikkes/${enc(a.nameOrId)}/appearances${qs({ category: a.category, limit: a.limit, offset: a.offset })}`,
+      ),
+  );
+
+  server.registerTool(
+    "compare_nikkes",
+    {
+      title: "Compare characters side by side",
+      description:
+        "Profile and skills of 2–4 characters in one response, for comparing kits or picking between them. Each entry is what get_nikke returns by default; add include for more.",
+      inputSchema: z.object({
+        nikkes: z.array(z.string().min(1)).min(2).max(4).describe("Character names (any language) or ids"),
+        include: z
+          .array(z.enum(Object.keys(NIKKE_EXTRA) as [keyof typeof NIKKE_EXTRA]))
+          .optional()
+          .describe("Extra sections, as in get_nikke (statsPerLevel is large — compare at most 2 with it)"),
+        lang: LANG,
+      }),
+      annotations: READ_ONLY,
+    },
+    async (a) => {
+      const started = Date.now();
+      const fields = [...NIKKE_DEFAULT_FIELDS, ...(a.include ?? []).map((k) => NIKKE_EXTRA[k])].join(",");
+      const rows = await Promise.all(
+        a.nikkes.map(async (q) => {
+          const get = (key: string) => api(`/api/nikkes/${enc(key)}${qs({ fields, lang: a.lang })}`);
+          let res = await get(q);
+          let d: any = await res.json();
+          if (!res.ok) return { query: q, error: d.error ?? `status ${res.status}` };
+          if (Array.isArray(d.characters)) {
+            // "라피" also matches "라피 : 레드 후드" — an exact name wins
+            const exact = d.characters.find((c: any) => String(c.name).replace(/\s/g, "") === q.replace(/\s/g, ""));
+            if (!exact) return { query: q, ambiguous: d.characters.map((c: any) => ({ id: c.id, name: c.name })) };
+            res = await get(String(exact.id));
+            d = await res.json();
+          }
+          return d;
+        }),
+      );
+      const out = fitJson(JSON.stringify({ count: rows.length, nikkes: rows }));
+      logCall("compare_nikkes", 200, started, out.text.length);
+      return result(out.text, out.isError);
+    },
   );
 
   server.registerTool(
@@ -492,7 +605,7 @@ export function buildServer(api: Fetcher, version: string, origin = "") {
       };
       const q = enc(query);
       const [nikkes, events, scenes, favorites] = await Promise.all([
-        get(`/api/nikkes?q=${q}&limit=5&lang=ko&fields=id,name`),
+        get(`/api/nikkes?q=${q}&family=1&limit=8&lang=ko&fields=id,name`),
         get(`/api/events?q=${q}&limit=5&fields=id,title`),
         get(`/api/scenes?q=${q}&limit=5&fields=groupId,name`),
         get(`/api/favorites?q=${q}&limit=5&lang=ko&fields=id,name`),

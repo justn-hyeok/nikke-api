@@ -201,3 +201,47 @@ test("live user tools are rate limited per instance", async () => {
   for (let i = 0; i < 31; i++) limited = await tool("get_user_profile", { blablaid: "x" });
   assert.match(limited!.json.error, /rate limited/);
 });
+
+test("이격 versions are linked to their original", async () => {
+  const anchor = (await tool("search_nikkes", { q: "이노센트" })).json;
+  assert.deepEqual(anchor.characters.map((c: any) => c.id), [2, 3]); // original + variant
+  assert.deepEqual((await tool("search_nikkes", { q: "이노센트", family: false })).json.characters.map((c: any) => c.id), [3]);
+  const detail = (await tool("get_nikke", { nameOrId: "3" })).json;
+  assert.equal(detail.family.base, "앵커");
+  assert.deepEqual(detail.family.members.map((m: any) => m.id), [2, 3]);
+  // affection scenes of the variant are found from the original's name
+  assert.equal((await tool("search_scenes", { nikke: "앵커" })).json.count, 1);
+});
+
+test("read_event returns the whole script as speaker lines", async () => {
+  const ev = (await tool("read_event", { id: "event_firstaffection" })).json;
+  assert.equal(ev.count, 2);
+  assert.deepEqual(ev.episodes[0].lines, ["비 오는 밤.", "앵커: 지휘관님, 우산 가져왔어요!"]);
+  assert.deepEqual(ev.episodes[1].lines, []); // listed scene without a file
+  assert.equal((await tool("read_event", { id: "nope" })).isError, true);
+});
+
+test("search_lines finds dialogue and labels its event", async () => {
+  const hit = (await tool("search_lines", { q: "우산!" })).json; // punctuation ignored
+  assert.equal(hit.count, 1);
+  assert.equal(hit.lines[0].speaker, "앵커");
+  assert.deepEqual(hit.lines[0].scene.event, { id: "event_firstaffection", title: "FIRST AFFECTION" });
+  // speaker by a variant's name reaches the original's lines
+  assert.equal((await tool("search_lines", { speaker: "앵커: 이노센트 메이드" })).json.count, 1);
+  assert.equal((await tool("search_lines", { speaker: "앵커: 이노센트 메이드", family: false })).json.count, 0);
+  assert.equal((await tool("search_lines", {})).isError, true);
+});
+
+test("nikke_appearances rolls scenes up per event", async () => {
+  const ap = (await tool("nikke_appearances", { nameOrId: "Anchor: Innocent Maid" })).json;
+  assert.equal(ap.family.base, "앵커");
+  assert.deepEqual(ap.events, [{ id: "event_firstaffection", title: "FIRST AFFECTION", scenes: 1, lines: 1 }]);
+  assert.equal((await tool("nikke_appearances", { nameOrId: "라피", category: "main" })).json.scenes[0].groupId, "d_main_01_01");
+});
+
+test("compare_nikkes prefers an exact name and flags ambiguity", async () => {
+  const cmp = (await tool("compare_nikkes", { nikkes: ["앵커", "라피"] })).json;
+  assert.deepEqual(cmp.nikkes.map((n: any) => n.id), [2, 1]); // 앵커 also matches its 이격
+  const amb = (await tool("compare_nikkes", { nikkes: ["앵", "라피"] })).json;
+  assert.equal(amb.nikkes[0].ambiguous.length, 2);
+});

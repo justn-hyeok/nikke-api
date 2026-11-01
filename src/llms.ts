@@ -9,7 +9,7 @@ export interface ToolInfo {
   description?: string;
 }
 
-const DEFAULT_DOCS = "https://leegunwoooo.github.io/nikke-api/";
+const DEFAULT_DOCS = "https://nikke-api-docs.pages.dev/";
 
 export const docsUrl = () => (process.env.NIKKE_DOCS_URL || DEFAULT_DOCS).replace(/\/?$/, "/");
 

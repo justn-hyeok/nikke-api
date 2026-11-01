@@ -1,8 +1,8 @@
 ---
 layout: home
-title: nikke-api
-titleTemplate: 비공식 NIKKE 데이터 API + MCP 서버
-description: 승리의 여신 니케의 캐릭터·스토리·소장품 데이터를 ChatGPT·Claude에서 바로 쓰는 MCP 서버와 REST API. 주소 하나로 연결, 무료·비공식 팬 프로젝트.
+title: 니케 MCP·API — ChatGPT·Claude에서 니케 데이터 찾기
+titleTemplate: ":title | nikke-api"
+description: 승리의 여신 니케의 캐릭터 스킬·스토리 대본·이벤트·감상 순서·소장품 데이터를 ChatGPT·Claude에서 바로 찾는 무료 MCP 서버와 REST API. 주소 하나만 넣으면 연결되고, 다음에 볼 스토리 추천도 받을 수 있어요.
 ---
 
 <div class="nk-home">
@@ -109,6 +109,14 @@ Claude Code·Cursor·VS Code 설정과 문제 해결은 [MCP 연결 가이드](/
 [API 레퍼런스](/api)에서 모든 엔드포인트를 브라우저에서 바로 호출해 볼 수 있습니다. 소스 코드와 직접 배포 방법은 [GitHub](https://github.com/leegunwoooo/nikke-api)에 있어요.
 
 </div>
+</section>
+
+<section class="nk-section" id="faq" aria-labelledby="faq-heading">
+<div class="nk-section-head">
+<p class="nk-eyebrow">FAQ</p>
+<h2 id="faq-heading">자주 묻는 질문</h2>
+</div>
+<Faq />
 </section>
 
 <footer class="nk-notice" aria-label="저작권 고지">

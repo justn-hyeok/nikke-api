@@ -341,6 +341,25 @@ html {
   color: var(--nk-text-muted);
   font-size: var(--nk-text-md);
 }
+/* FAQ: question/answer pairs, always visible (the FAQPage JSON-LD mirrors this text) */
+.nk-faq {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(22em, 100%), 1fr));
+  gap: var(--nk-space-5) var(--nk-space-7);
+  margin: 0;
+}
+.nk-faq-item dt {
+  font-size: var(--nk-text-md);
+  font-weight: 700;
+  color: var(--nk-text);
+  line-height: 1.5;
+}
+.nk-faq-item dd {
+  margin: var(--nk-space-2) 0 0;
+  font-size: var(--nk-text-md);
+  color: var(--nk-text-muted);
+  line-height: 1.7;
+}
 .nk-section-foot {
   margin-top: var(--nk-space-6);
   font-size: var(--nk-text-sm);

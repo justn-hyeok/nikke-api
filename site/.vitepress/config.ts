@@ -1,8 +1,8 @@
 import { defineConfig, type HeadConfig } from "vitepress";
 
-// absolute site root for canonical/OG/sitemap — the GitHub Pages URL unless a
-// preview build points it elsewhere (VITE_SITE_URL)
-const SITE_URL = (process.env.VITE_SITE_URL || "https://leegunwoooo.github.io/nikke-api/").replace(/\/?$/, "/");
+// absolute site root for canonical/OG/sitemap — the Cloudflare Pages URL unless
+// a build points it elsewhere (VITE_SITE_URL; CI passes the repo's DOCS_SITE_URL)
+const SITE_URL = (process.env.VITE_SITE_URL || "https://nikke-api-docs.pages.dev/").replace(/\/?$/, "/");
 const SITE_NAME = "nikke-api";
 const REPO = "https://github.com/leegunwoooo/nikke-api";
 const pageUrl = (relativePath: string) =>
@@ -13,7 +13,8 @@ export default defineConfig({
   lang: "ko-KR",
   title: "nikke-api",
   description: "비공식 NIKKE 데이터 REST API + MCP 서버",
-  base: "/nikke-api/",
+  // served from a domain root on Cloudflare Pages; set VITE_BASE for a subpath host
+  base: process.env.VITE_BASE || "/",
   appearance: "dark",
   cleanUrls: true,
   // generated raw markdown (scripts/build-llms.ts) is served as-is, not built as pages

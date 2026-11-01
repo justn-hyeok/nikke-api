@@ -15,7 +15,7 @@ const PUBLIC = path.resolve(import.meta.dirname, "../public");
 const OFFICIAL_API = "https://nikke-api-edge.leegunwoo0325-5e6.workers.dev";
 
 const apiBase = (process.env.VITE_API_BASE || OFFICIAL_API).replace(/\/$/, "");
-const siteUrl = (process.env.VITE_SITE_URL || "https://leegunwoooo.github.io/nikke-api/").replace(/\/?$/, "/");
+const siteUrl = (process.env.VITE_SITE_URL || "https://nikke-api-docs.pages.dev/").replace(/\/?$/, "/");
 
 const read = (f: string) => readFileSync(path.join(ROOT, f), "utf8");
 const withApi = (md: string) => md.split(OFFICIAL_API).join(apiBase);
